@@ -1,0 +1,191 @@
+# Todas las baterías, en cada pull request y en cada push a main.
+#
+# Por qué aquí y no en Cloudflare: el plan gratuito de Workers Builds trae
+# 3.000 minutos al mes y UNA sola compilación a la vez. Esa cola es la que
+# despliega; si además corre las pruebas, cada push a cualquier rama se
+# encola detrás de una corrida de cinco minutos con Chromium. GitHub Actions
+# corre en paralelo y el resultado aparece como una marca de verificación en
+# el pull request, que es donde se revisa. Cloudflare despliega; GitHub
+# decide si merece desplegarse.
+name: pruebas
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Para que el flujo de release pueda exigir el verde antes de publicar.
+  workflow_call:
+
+jobs:
+  pruebas:
+    # NO SOBRE LOS PULL REQUESTS QUE ABREN `fotos` NI `montaje`, Y NO POR
+    # AHORRAR MINUTOS.
+    #
+    # Los dos flujos corren TODAS las baterías sobre los archivos ya escritos, y
+    # solo después publican. Volver a correrlas aquí prueba exactamente lo mismo
+    # sobre exactamente los mismos bytes.
+    #
+    # Y no sale gratis: una corrida disparada por el pull request de un bot
+    # queda **esperando la aprobación de un mantenedor**, y si nadie la aprueba
+    # caduca y deja una X roja en un pull request que ya se fusionó bien. Una
+    # marca roja que no significa nada es peor que ninguna marca: enseña a no
+    # mirarlas.
+    #
+    # ANTES AQUÍ DECÍA que el de `montaje` sí se comprobaba a propósito, porque
+    # «ese pull request espera a una persona». Dejó de ser cierto cuando
+    # `montaje` empezó a fusionar solo, y nadie corrigió esta frase: el
+    # resultado fue justo la X roja que el párrafo de arriba describe, en el
+    # primer montaje de este repositorio. Hoy `montaje` publica directo en main
+    # y no abre pull request ninguno salvo que se le pida a mano; cuando se le
+    # pide, quien lo pidió está mirando, y esta condición le ahorra la
+    # retención igual.
+    if: >-
+      !(github.event_name == 'pull_request' &&
+        github.event.pull_request.user.login == 'github-actions[bot]' &&
+        (startsWith(github.head_ref, 'fotos/nuevas-') ||
+         startsWith(github.head_ref, 'montaje/')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: pruebas
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # ── Que la versión suba cuando cambia lo que se despliega ──
+      # Sin esto, una mejora sale al aire y las tiendas siguen creyendo que
+      # tienen la de antes: el panel las muestra al día y no lo están. La
+      # comprobación es mecánica a propósito — no depende de acordarse.
+      - name: La versión sube cuando cambia lo desplegable
+        if: github.event_name == 'pull_request'
+        run: |
+          base="origin/${{ github.base_ref }}"
+          if git diff --quiet "$base"...HEAD -- maestro.gs panel.gs publicar/index.html; then
+            echo "No cambió nada que se despliegue. Nada que exigir."
+            exit 0
+          fi
+          echo "Cambió algo que se despliega:"
+          git diff --name-only "$base"...HEAD -- maestro.gs panel.gs publicar/index.html | sed 's/^/  · /'
+          antes=$(git show "$base:package.json" | node -pe "JSON.parse(require('fs').readFileSync(0,'utf8')).version")
+          ahora=$(node -pe "require('./package.json').version")
+          if [ "$antes" = "$ahora" ]; then
+            echo
+            echo "La versión sigue en $antes."
+            echo "Sube \"version\" en package.json antes de fusionar:"
+            echo "  parche  1.0.1  si el cliente no nota nada"
+            echo "  menor   1.1.0  si hay algo nuevo"
+            echo "  mayor   2.0.0  si una tienda vieja tiene que tocar la hoja o el maestro"
+            exit 1
+          fi
+          echo "Versión: $antes -> $ahora"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      # LA CACHÉ DE NPM, A MANO Y NO CON `cache: npm`.
+      # `cache: npm` exige un package-lock.json, y en este repositorio los dos
+      # están en .gitignore: en un checkout limpio no existen, y setup-node se
+      # cae con «Some specified paths were not resolved». Cachear ~/.npm no
+      # necesita lockfile y se lleva lo que de verdad pesa, que es el binario
+      # nativo de sharp.
+      - name: Caché de npm
+        uses: actions/cache@v5
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package.json', 'pruebas/package.json') }}
+          restore-keys: npm-${{ runner.os }}-
+
+      # Chromium pesa y no cambia entre corridas: se guarda en caché para que
+      # una corrida normal tarde en pruebas, no en descargar el navegador.
+      - name: Caché del navegador
+        id: navegador
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          # B-5 · LA CACHÉ QUE NO SE PIERDE ENTERA. La clave sale del
+          # package-lock.json, que es lo que fija la versión EXACTA de
+          # Playwright: con package.json, un rango `^1.47.0` que resuelve a una
+          # versión nueva dejaba la clave igual y el navegador cacheado dejaba
+          # de servir. Y `restore-keys` recupera la caché anterior cuando la
+          # clave cambia: sin ella, subir una dependencia cualquiera tira a la
+          # basura el navegador entero y hay que bajarlo de nuevo — minutos que
+          # en un repositorio privado se pagan.
+          #
+          # La clave NO lleva la rama a propósito: una caché por rama multiplica
+          # el almacenamiento, que en privado también se paga, y no protege de
+          # nada porque la clave ya cambia cuando cambian las dependencias.
+          key: playwright-${{ runner.os }}-${{ hashFiles('pruebas/package-lock.json') }}
+          restore-keys: playwright-${{ runner.os }}-
+
+      - name: Dependencias
+        run: npm ci --no-audit --no-fund
+
+      - name: Navegador
+        run: |
+          # B-5 · LAS DEPENDENCIAS DEL SISTEMA, SOLO CUANDO HACEN FALTA.
+          # `--with-deps` instala paquetes apt y tarda; con la caché acertada el
+          # navegador ya está en su sitio y esa instalación no aporta nada.
+          if [ "${{ steps.navegador.outputs.cache-hit }}" = "true" ]; then
+            npx playwright install chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
+
+      # todas.sh copia maestro.gs e index.html reales antes de correr, y sale
+      # con código 1 si falla una sola aserción.
+      - name: Todas las baterías
+        run: |
+          set -o pipefail
+          ./todas.sh 2>&1 | tee /tmp/pruebas.txt || estado=$?
+          {
+            echo "### Las baterías"
+            echo '```'
+            grep -E "^ FALLA|^  TOTAL|Baterías con problemas|^    ·" /tmp/pruebas.txt || tail -30 /tmp/pruebas.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit ${estado:-0}
+
+      # ── B-1 / B-6 · QUÉ SE LLEVÓ EL RELOJ, Y SI ESO CABE ─────────────────
+      # No hay que instrumentar un solo paso: GitHub ya los cronometra todos y
+      # lo publica en su API. Escribir un reloj a mano en treinta pasos serían
+      # treinta sitios donde olvidarse de uno, y el que se olvida es justo el
+      # que se come el tiempo (patrón 2).
+      #
+      # `always()` a propósito: cuando la corrida falla es cuando más importa
+      # saber dónde se fue el tiempo. Y si la API no contesta, esto NO tumba la
+      # corrida — medir es un servicio, no el trabajo.
+      - name: Los tiempos
+        if: always()
+        # DESDE LA RAÍZ, y no desde `pruebas/`. Este flujo tiene
+        # `defaults.run.working-directory: pruebas` —todas sus baterías viven
+        # ahí— y este paso lo heredó sin que nadie lo pensara: buscaba
+        # `pruebas/montar/tiempos.mjs`, que no existe, y tumbaba una corrida que
+        # había salido 1600/1600. La herramienta, el presupuesto y el resumen
+        # viven en la raíz del repositorio; un `defaults` es una decisión para
+        # los pasos que estaban cuando se escribió, no para los que vengan.
+        working-directory: .
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SIN_GUARDIA: '0'
+        run: |
+          estado=0
+          node montar/tiempos.mjs || estado=$?
+          # La herramienta imprime y escribe tiempos.md; el flujo lo pega en
+          # el resumen. Es como lo hacen todos los pasos de aquí, y deja que
+          # A-8 pueda declarar lo que se escribe (una ruta que sale del
+          # entorno no se puede declarar).
+          [ -f tiempos.md ] && cat tiempos.md >> "$GITHUB_STEP_SUMMARY"
+          exit $estado
+
+      - name: Guardar los tiempos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tiempos-${{ github.run_id }}
+          path: tiempos.json
+          retention-days: 30
+          if-no-files-found: ignore

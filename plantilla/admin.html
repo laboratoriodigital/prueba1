@@ -1,0 +1,2173 @@
+<!DOCTYPE html>
+<html lang="es-CO">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- El panel NO se indexa. robots.txt ya lo excluye, y esto lo repite en la
+     propia página: robots.txt es una petición a los rastreadores, noindex es
+     una instrucción, y un panel de gestión que aparece en una búsqueda no se
+     descubre hasta que alguien lo encuentra buscando. -->
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Panel de la tienda</title>
+<style>
+:root{
+  --negro:#111;--tenue:#6E6E6E;--linea:#E4E4E4;--fondo:#F7F7F5;--blanco:#fff;
+  --rojo:#B3261E;--verde:#14472B;--ambar:#8A6100;--radio:6px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font:400 15px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+     background:var(--fondo);color:var(--negro);min-height:100vh}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+[hidden]{display:none!important}
+.envoltura{max-width:860px;margin:0 auto;padding:0 16px}
+
+.barra{background:var(--blanco);border-bottom:1px solid var(--linea);position:sticky;top:0;z-index:5}
+.barra .envoltura{display:flex;align-items:center;justify-content:space-between;height:56px;gap:12px}
+.barra h1{font-size:1rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.barra h1 small{font-weight:400;color:var(--tenue);margin-left:6px}
+.quien{display:flex;align-items:center;gap:10px;font-size:.85rem;color:var(--tenue)}
+
+.btn{border:1px solid var(--negro);background:var(--negro);color:var(--blanco);
+     padding:10px 16px;border-radius:var(--radio);font-weight:600;font-size:.9rem}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.linea{background:var(--blanco);color:var(--negro)}
+.btn.peligro{background:var(--blanco);color:var(--rojo);border-color:var(--rojo)}
+.btn.peligro.firme{background:var(--rojo);color:var(--blanco)}
+.btn.chico{padding:6px 10px;font-size:.82rem}
+
+.tarjeta{background:var(--blanco);border:1px solid var(--linea);border-radius:var(--radio);padding:20px}
+label{display:block;font-size:.82rem;font-weight:600;margin:14px 0 5px}
+.campo{width:100%;padding:10px 12px;border:1px solid #cfcfcf;border-radius:var(--radio);background:var(--blanco)}
+.campo:focus{outline:none;border-color:var(--negro)}
+.campo.mal{border-color:var(--rojo);background:#FFF6F5}
+textarea.campo{min-height:88px;resize:vertical}
+.ayuda{font-size:.78rem;color:var(--tenue);margin-top:4px}
+.aviso{font-size:.88rem;margin-top:12px;padding:10px 12px;border-radius:var(--radio)}
+.aviso.mal{background:#FDECEA;color:var(--rojo)}
+.aviso.bien{background:#E8F3EC;color:var(--verde)}
+.aviso.info{background:#FFF7E0;color:var(--ambar)}
+
+/* ── Entrar ── */
+#entrar{max-width:380px;margin:12vh auto 0}
+#entrar h2{font-size:1.25rem;margin-bottom:4px}
+#entrar p.sub{color:var(--tenue);font-size:.88rem}
+#entrar .btn{width:100%;margin-top:18px;padding:12px}
+/* 0.11.0 · el indicador de carga */
+.girando{display:none;width:16px;height:16px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;
+  animation:girar .8s linear infinite;vertical-align:-3px;margin-right:8px}
+@keyframes girar{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.girando{animation-duration:2.4s}}
+.btn.ocupado .girando{display:inline-block}
+.cargando-entrar{display:flex;align-items:center;gap:4px;font-size:.88rem;color:var(--tenue);margin-top:12px}
+.cargando-entrar .girando{display:inline-block}
+.enlace{background:none;border:none;padding:0;color:inherit;text-decoration:underline;font-weight:600;cursor:pointer}
+
+/* ── Lista ── */
+.publicar{margin:16px 0}
+.herramientas{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 0}
+.herramientas .campo{flex:1;min-width:160px}
+.herramientas select.campo{flex:0 0 auto;width:auto}
+.herramientas .check{display:flex;align-items:center;gap:6px;font-size:.85rem;color:var(--tenue)}
+.cuenta{font-size:.82rem;color:var(--tenue);margin-bottom:8px}
+.lista{display:flex;flex-direction:column;gap:8px;margin-bottom:40px}
+.fila{background:var(--blanco);border:1px solid var(--linea);border-radius:var(--radio);
+      padding:12px 14px;display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center}
+.fila.apagado{opacity:.6}
+.fila h3{font-size:.95rem;font-weight:600}
+.fila .datos{font-size:.82rem;color:var(--tenue)}
+.fila .datos b{color:var(--negro);font-weight:600}
+.fila .acciones{display:flex;gap:6px;align-items:center}
+.etiqueta{display:inline-block;font-size:.72rem;font-weight:600;padding:2px 7px;border-radius:99px;margin-left:6px;vertical-align:1px}
+.etiqueta.mal{background:#FDECEA;color:var(--rojo)}
+.etiqueta.off{background:#EEE;color:var(--tenue)}
+.vacio{text-align:center;color:var(--tenue);padding:40px 0}
+
+/* ── Formulario ── */
+#editor h2{font-size:1.15rem}
+.dos{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.checks{display:flex;gap:20px;margin-top:16px}
+.checks label{display:flex;align-items:center;gap:6px;margin:0;font-weight:400;font-size:.9rem}
+.pie-form{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px;align-items:center}
+.pie-form .separa{flex:1}
+/* ── Pestañas ── */
+.pestanas{display:flex;gap:4px;border-bottom:1px solid var(--linea);margin:4px 0 0;overflow-x:auto}
+.pestanas button{background:none;border:none;border-bottom:2px solid transparent;padding:10px 14px;
+  font-weight:600;font-size:.9rem;color:var(--tenue);white-space:nowrap}
+.pestanas button[aria-selected="true"]{color:var(--negro);border-bottom-color:var(--negro)}
+
+/* ── Publicar (D-5) ── */
+.barra-publicar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:16px 0 8px;
+  padding:12px 14px;border-radius:var(--radio);background:var(--blanco);border:1px solid var(--linea)}
+.barra-publicar .texto{flex:1;min-width:200px;font-size:.88rem}
+.botones-publicar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.barra-publicar .texto b{display:block;font-size:.95rem}
+.barra-publicar.pendiente{border-color:#E8C66A;background:#FFFBEF}
+.barra-publicar.corriendo{border-color:#9DB8E8;background:#F4F8FF}
+.barra-publicar.mal{border-color:#E7A5A0;background:#FDF3F2}
+.barra-publicar.bien{border-color:#A9CFB6;background:#F2F9F4}
+.barra-publicar a{color:inherit}
+
+/* ── Pedidos (D-3) ── */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 8px}
+.chips button{border:1px solid var(--linea);background:var(--blanco);border-radius:99px;padding:5px 11px;font-size:.8rem}
+.chips button[aria-pressed="true"]{background:var(--negro);color:var(--blanco);border-color:var(--negro)}
+.estado{display:inline-block;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:99px;background:#EEE;color:var(--negro)}
+.estado.nuevo{background:#FFF1C9}.estado.pendiente_pago{background:#FFE3C9}.estado.pagado{background:#DDF0E3}
+.estado.despachado{background:#DCE8FB}.estado.entregado{background:#E4E4E4}.estado.cancelado{background:#F4DADA}
+.estado.revisar{background:#FDECEA;color:var(--rojo)}
+table.lineas{width:100%;border-collapse:collapse;margin:12px 0;font-size:.88rem}
+table.lineas td{padding:7px 4px;border-bottom:1px solid var(--linea);vertical-align:top}
+table.lineas td.n{text-align:right;white-space:nowrap}
+.dato{font-size:.85rem;color:var(--tenue);margin:2px 0}
+.dato b{color:var(--negro)}
+
+/* ── Configuración (D-4) ── */
+fieldset{border:none;margin:0 0 18px}
+legend{font-weight:700;font-size:.95rem;margin-bottom:2px}
+.muestra{display:inline-block;width:22px;height:22px;border-radius:4px;border:1px solid var(--linea);vertical-align:middle;margin-left:8px}
+.error-campo{font-size:.78rem;color:var(--rojo);margin-top:4px}
+@media (max-width:520px){ .dos{grid-template-columns:1fr} .fila{grid-template-columns:1fr} }
+.fila-combo{display:grid;grid-template-columns:1fr 96px;gap:2px 10px;align-items:center;margin:0 0 6px}
+.fila-combo label{margin:0;font-weight:500}
+.fila-combo .error-campo{grid-column:1/-1;margin:0}
+
+/* ── Dos pantallas y ajustes (0.9.0) ── */
+.titulo-bloque{font-size:1.05rem;margin:22px 0 6px}
+details.seccion{border-top:1px solid var(--linea);padding:4px 0}
+details.seccion:first-child{border-top:none}
+details.seccion>summary{cursor:pointer;font-weight:700;padding:10px 0;list-style-position:inside}
+details.seccion[open]>summary{margin-bottom:4px}
+.tarjeta.seccion{margin-top:12px;padding:6px 20px 14px;border-top:1px solid var(--linea)}
+.sensible{font-weight:400;font-size:.78rem;color:var(--ambar)}
+.fila-ajuste{border:1px solid var(--linea);border-radius:var(--radio);padding:8px 12px;margin:8px 0}
+.fila-ajuste>summary{cursor:pointer;font-size:.9rem;font-weight:600;padding:2px 0}
+.rejilla-ajuste{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:4px 12px}
+.rejilla-ajuste label{margin-top:4px}
+.pie-fila{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+.estado-fila{font-size:.82rem;color:var(--tenue)}
+.seguimiento{border-top:1px solid var(--linea);margin-top:18px;padding-top:6px}
+.fila-avisame{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px;border-top:1px solid var(--linea);padding:8px 0}
+#formTienda .pie-form{position:sticky;bottom:0;background:var(--blanco);padding:10px 0 4px;margin-bottom:0}
+
+/* ── Tablero (M4) ── */
+.cabeza-tablero{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin:14px 0 6px}
+.cabeza-tablero .cuenta{margin:0}
+.cifras{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:10px 0 4px}
+.cifra{background:var(--blanco);border:1px solid var(--linea);border-radius:var(--radio);padding:12px 14px}
+.cifra .rotulo{font-size:.78rem;color:var(--tenue)}
+.cifra .valor{font-size:1.35rem;font-weight:700;line-height:1.25;margin:2px 0}
+.cifra .antes{font-size:.78rem;color:var(--tenue)}
+.cifra .sube{color:var(--verde);font-weight:600}.cifra .baja{color:var(--rojo);font-weight:600}
+.grafica{margin:14px 0}
+.grafica h3{font-size:.95rem;margin:0 0 2px}
+.grafica .ayuda{margin:0 0 8px}
+.grafica svg{display:block;width:100%;height:auto;max-width:640px}
+.grafica table.lineas{margin-top:8px;table-layout:fixed}
+.grafica table.lineas td,.grafica table.lineas th{overflow-wrap:anywhere}
+.grafica table.lineas th{font-size:.75rem;font-weight:600;color:var(--tenue);text-align:left;padding:4px;border-bottom:1px solid var(--linea)}
+.grafica table.lineas th.n{text-align:right}
+.lista-corta{font-size:.88rem;margin:4px 0 0 18px}
+.alerta{color:var(--rojo);font-weight:600}
+
+/* ════════════════════════════════════════════════════════════════════════
+   0.15.0 · EL ASPECTO: MÍNIMO, SOBRIO, PROFESIONAL
+   ------------------------------------------------------------------------
+   Pedido del dueño. Va AL FINAL y solo retoca: los mismos selectores de
+   arriba, con otra tinta, más aire, bordes más suaves y un foco visible. No
+   cambia ni un id ni una clase —las baterías leen la página por ellos—, y no
+   trae fuentes de fuera: la política de seguridad no las deja, y en un
+   celular del mostrador la fuente del sistema es la que se lee mejor.
+   ════════════════════════════════════════════════════════════════════════ */
+:root{
+  --negro:#18181B;--tenue:#71717A;--linea:#E7E7EA;--fondo:#FAFAFA;--blanco:#fff;
+  --rojo:#B42318;--verde:#067647;--ambar:#93370D;--radio:10px;
+  --sombra:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.06);
+  --anillo:0 0 0 3px rgba(24,24,27,.10);
+}
+body{font:400 15px/1.55 system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+     letter-spacing:-.005em;-webkit-font-smoothing:antialiased;font-feature-settings:"tnum" 1,"cv11" 1}
+.envoltura{max-width:920px;padding:0 20px}
+h2,h3,.titulo-bloque{letter-spacing:-.015em}
+
+.barra{background:rgba(255,255,255,.86);backdrop-filter:saturate(1.4) blur(10px);-webkit-backdrop-filter:saturate(1.4) blur(10px)}
+.barra .envoltura{height:60px}
+.barra h1{font-size:.98rem;font-weight:650;letter-spacing:-.01em}
+.barra h1 small{font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--tenue);
+  border:1px solid var(--linea);border-radius:99px;padding:2px 8px;margin-left:10px;vertical-align:2px}
+
+.btn{height:40px;padding:0 16px;border-radius:8px;font-weight:550;font-size:.88rem;letter-spacing:-.005em;
+     display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;
+     transition:background .15s,border-color .15s,box-shadow .15s,color .15s}
+.btn:hover:not(:disabled){background:#27272A;border-color:#27272A}
+.btn.linea{border-color:var(--linea);box-shadow:var(--sombra)}
+.btn.linea:hover:not(:disabled){background:#F4F4F5;border-color:#D4D4D8;color:var(--negro)}
+.btn.peligro{border-color:#FDA29B}
+.btn.peligro:hover:not(:disabled){background:#FEF3F2;color:var(--rojo);border-color:var(--rojo)}
+.btn.peligro.firme:hover:not(:disabled){background:#912018;color:#fff}
+.btn.chico{height:32px;padding:0 12px;font-size:.8rem}
+.btn:focus-visible,.campo:focus-visible,.enlace:focus-visible,summary:focus-visible,.chips button:focus-visible,.pestanas button:focus-visible{
+  outline:none;box-shadow:var(--anillo)}
+
+.tarjeta{border-color:var(--linea);border-radius:14px;padding:24px;box-shadow:var(--sombra)}
+label{font-size:.8rem;font-weight:550;color:#3F3F46;margin:16px 0 6px}
+.campo{border-color:#E4E4E7;border-radius:8px;padding:10px 12px;transition:border-color .15s,box-shadow .15s}
+.campo:hover{border-color:#D4D4D8}
+.campo:focus{border-color:#A1A1AA;box-shadow:var(--anillo)}
+.ayuda{font-size:.78rem;line-height:1.5}
+.aviso{border-radius:8px;border:1px solid transparent;font-size:.86rem}
+.aviso.mal{background:#FEF3F2;border-color:#FECDCA}
+.aviso.bien{background:#ECFDF3;border-color:#ABEFC6}
+.aviso.info{background:#FFFAEB;border-color:#FEDF89}
+
+#entrar{max-width:400px;margin:14vh auto 0}
+#entrar h2{font-size:1.35rem;font-weight:650}
+#entrar .btn{height:44px}
+
+.fila{border-radius:12px;padding:14px 16px;box-shadow:var(--sombra);transition:border-color .15s}
+.fila:hover{border-color:#D4D4D8}
+.fila h3{font-weight:600}
+.etiqueta{font-weight:550;border-radius:6px}
+
+.pestanas{gap:2px}
+.pestanas button{font-weight:550;padding:12px 14px}
+.pestanas button:hover{color:var(--negro)}
+
+.barra-publicar{border-radius:12px;padding:14px 16px;box-shadow:var(--sombra)}
+.barra-publicar.pendiente{border-color:#FEDF89;background:#FFFCF5}
+.barra-publicar.corriendo{border-color:#B2CCFF;background:#F5F8FF}
+.barra-publicar.mal{border-color:#FECDCA;background:#FFFBFA}
+.barra-publicar.bien{border-color:#ABEFC6;background:#F6FEF9}
+
+.chips button{border-color:var(--linea);padding:6px 12px;font-weight:500;transition:background .15s}
+.chips button:hover{background:#F4F4F5}
+.estado{font-weight:600;border-radius:6px;letter-spacing:.01em}
+.estado.nuevo{background:#FEF0C7;color:#93370D}.estado.pendiente_pago{background:#FFEAD5;color:#9C2A10}
+.estado.pagado{background:#DCFAE6;color:#067647}.estado.despachado{background:#D1E9FF;color:#175CD3}
+.estado.entregado{background:#F2F4F7;color:#344054}.estado.cancelado{background:#FEE4E2;color:#B42318}
+
+.titulo-bloque{font-size:1.1rem;font-weight:650;margin:28px 0 8px}
+details.seccion>summary{font-weight:600;padding:12px 0}
+details.seccion>summary::marker{color:#A1A1AA}
+.tarjeta.seccion{border-radius:14px;padding:8px 24px 16px}
+.fila-ajuste{border-radius:10px}
+
+.cifras{gap:12px}
+.cifra{border-radius:12px;padding:16px;box-shadow:var(--sombra)}
+.cifra .rotulo{font-size:.74rem;font-weight:550;text-transform:uppercase;letter-spacing:.06em}
+.cifra .valor{font-size:1.6rem;font-weight:650;letter-spacing:-.02em}
+.grafica h3{font-weight:600}
+.herramientas .check{margin:0;font-weight:400;color:var(--tenue)}
+.herramientas .check input{accent-color:var(--negro)}
+input[type=checkbox]{accent-color:var(--negro)}
+/* Con más aire en la tarjeta, las cifras de una tabla de gráfica ya no caben
+   en una línea en un celular: se parten, no empujan la página de lado. */
+.grafica table.lineas td.n{white-space:normal}
+.barra h1{min-width:0;flex:1 1 auto}
+.quien{flex-shrink:0;min-width:0}
+.quien #usuarioActual{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw}
+@media (max-width:520px){ .envoltura{padding:0 16px} .tarjeta{padding:18px} .barra h1 small{display:none} }
+</style>
+</head>
+<body>
+
+<header class="barra">
+  <div class="envoltura">
+    <h1><span id="marca">Tu tienda</span><small>panel</small></h1>
+    <div class="quien" id="quien" hidden>
+      <span id="usuarioActual"></span>
+      <button class="btn linea chico" id="salir" type="button">Salir</button>
+    </div>
+  </div>
+</header>
+
+<main class="envoltura">
+
+  <!-- ═══ ENTRAR ═══ -->
+  <section id="entrar" class="tarjeta" hidden>
+    <h2>Entrar al panel</h2>
+    <p class="sub">Con el usuario y la clave de tu tienda.</p>
+    <form id="formEntrar" autocomplete="on" novalidate>
+      <label for="usuario">Usuario</label>
+      <input class="campo" id="usuario" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      <label for="clave">Clave</label>
+      <input class="campo" id="clave" name="password" type="password" autocomplete="current-password" required>
+      <button class="btn" type="submit" id="botonEntrar"><span class="girando" aria-hidden="true"></span><span class="texto-boton">Entrar</span></button>
+    </form>
+    <!-- 0.11.0 · Lo que más se nota lento es este momento: el maestro de
+         Google «despierta» y puede tardar varios segundos. Se dice, para que
+         nadie pulse otra vez ni crea que se colgó. -->
+    <p class="cargando-entrar" id="esperaEntrar" role="status" hidden>
+      <span class="girando" aria-hidden="true"></span>
+      <span id="esperaTexto">Entrando a tu tienda…</span>
+    </p>
+    <p class="aviso mal" id="avisoEntrar" role="alert" hidden></p>
+    <p class="ayuda" style="margin-top:16px"><button type="button" class="enlace" id="abrirRecuperar">¿Olvidaste tu clave?</button>
+      Te mandamos un código al correo de tu tienda. También puedes pedir una nueva en tu hoja:
+      menú de la tienda › <b>Clave del panel</b>. Si eres colaborador, pídele una clave nueva al dueño.</p>
+
+    <!-- ═══ 2.3 · RECUPERAR LA CLAVE ═══ -->
+    <div id="recuperar" hidden>
+      <h3 class="titulo-bloque">Una clave nueva</h3>
+      <p class="ayuda" id="recuperarTexto">Te mandamos un código de 8 cifras al correo de la tienda, con tu usuario.
+        Con ese código creamos una clave nueva; la que tenías deja de servir.</p>
+      <button class="btn linea" type="button" id="pedirCodigo"><span class="girando" aria-hidden="true"></span>Mandar el código</button>
+      <div id="cajaCodigo" hidden>
+        <label for="codigo">Código del correo</label>
+        <input class="campo" id="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="12">
+        <button class="btn" type="button" id="usarCodigo"><span class="girando" aria-hidden="true"></span>Crear la clave nueva</button>
+      </div>
+      <div id="claveNueva" hidden>
+        <p class="aviso bien"><b>Tu clave nueva:</b> <code id="claveNuevaTexto"></code><br>
+          Apúntala ahora: es la única vez que se ve. Ya la dejamos escrita arriba para entrar.</p>
+      </div>
+      <p class="aviso" id="avisoRecuperar" role="status" hidden></p>
+    </div>
+  </section>
+
+  <!-- Mientras se comprueba una sesión guardada: sin esto, la pantalla quedaba
+       en blanco unos segundos y parecía rota. -->
+  <section id="cargandoPanel" class="cargando-entrar" style="margin-top:14vh;justify-content:center" hidden>
+    <span class="girando" aria-hidden="true"></span><span>Abriendo tu panel…</span>
+  </section>
+
+  <!-- ═══ SIN HOJA ═══ -->
+  <section id="sinHoja" class="tarjeta" style="margin-top:12vh" hidden>
+    <h2>Este panel todavía no está conectado a su hoja</h2>
+    <p class="ayuda">Se conecta solo la primera vez que se publica la tienda.</p>
+  </section>
+
+  <section id="panel" hidden>
+    <!-- ═══ PUBLICAR (D-5) ═══
+         GUARDAR NO PUBLICA, y se dice arriba y siempre. La tienda publicada
+         sirve un catálogo horneado: lo que se guarda aquí no se ve allá hasta
+         que alguien publica. Callarlo es garantizar la llamada de «guardé y no
+         sale». Esta barra dice si hay algo sin publicar, cuándo fue la última
+         vez, y mientras corre, cómo va. -->
+    <div class="barra-publicar publicar" id="barraPublicar" role="status" aria-live="polite">
+      <div class="texto" id="textoPublicar"><b>Revisando tu tienda…</b>
+        Lo que guardas queda en tu hoja al momento; la tienda lo muestra cuando publicas.</div>
+      <div class="botones-publicar">
+        <!-- 0.13.0 · 2.5 · VER ANTES DE PUBLICAR. Abre la tienda leyendo la hoja
+             en vivo —lo guardado, publicado o no—, con un cartel que lo dice y
+             sin poder pedir. -->
+        <a class="btn linea" id="vistaPrevia" href="./?vista=1" target="_blank" rel="noopener">Vista previa</a>
+        <button class="btn" type="button" id="publicar" hidden>Publicar ahora</button>
+      </div>
+    </div>
+
+    <p class="aviso mal" id="avisoCobro" role="alert" hidden></p>
+
+    <!-- ═══ DOS PANTALLAS (0.9.0) ═══
+         Eran cuatro pestañas —Productos, Pedidos, Tu tienda, Tablero— y el
+         dueño pidió dos: lo del día en una, lo que se arma en la otra.
+         VENTAS: cómo va el mes arriba, los pedidos, y las gráficas debajo.
+         TIENDA: los productos arriba, y debajo TODO lo que antes solo se
+         cambiaba en la hoja, en secciones plegables. La hoja sigue sirviendo
+         igual: es el respaldo si la página falla. -->
+    <nav class="pestanas" role="tablist" aria-label="Secciones del panel">
+      <button type="button" role="tab" id="tab-ventas" aria-selected="true" data-vista="ventas">Ventas</button>
+      <button type="button" role="tab" id="tab-tienda" aria-selected="false" data-vista="tienda">Tienda</button>
+    </nav>
+
+    <!-- ═══════════════ VENTAS ═══════════════ -->
+    <div id="pantalla-ventas">
+      <!-- El tablero (M4). UNA PETICIÓN POR VISITA: se piden al abrir esta
+           pantalla y no se repiten solos; para cifras nuevas está Actualizar. -->
+      <div id="resumenVentas">
+        <div class="cabeza-tablero">
+          <p class="cuenta" id="consultadoTablero"></p>
+          <button class="btn linea chico" type="button" id="actualizarTablero">Actualizar</button>
+        </div>
+        <p class="aviso" id="avisoTablero" role="status" hidden></p>
+        <div id="tableroCifras"></div>
+        <h2 class="titulo-bloque">Pedidos</h2>
+      </div>
+
+
+    <!-- ═══ PEDIDOS (D-3) ═══ -->
+    <div id="vista-pedidos">
+      <div id="pedidos-lista-vista">
+        <div class="chips" id="chipsEstados" role="group" aria-label="Filtrar por estado"></div>
+        <div class="herramientas">
+          <input class="campo" id="buscarPedido" type="search" placeholder="Buscar por número de pedido" aria-label="Buscar pedidos">
+        </div>
+        <p class="aviso" id="avisoPedidos" role="status" hidden></p>
+        <p class="cuenta" id="cuentaPedidos"></p>
+        <div class="lista" id="listaPedidos"></div>
+      </div>
+
+      <section id="pedido" class="tarjeta" hidden style="margin:16px 0 40px" aria-labelledby="tituloPedido">
+        <h2 id="tituloPedido">Pedido</h2>
+        <div id="detallePedido"></div>
+        <label for="p-estado">Estado</label>
+        <select class="campo" id="p-estado"></select>
+        <div id="p-guia-caja" hidden>
+          <label for="p-guia">Guía del envío <span style="font-weight:400;color:var(--tenue)">(opcional)</span></label>
+          <input class="campo" id="p-guia" maxlength="60" placeholder="Transportadora y número">
+        </div>
+        <p class="ayuda" id="p-efecto"></p>
+        <p class="aviso" id="avisoPedido" role="alert" hidden></p>
+        <div class="pie-form">
+          <button class="btn" type="button" id="guardarPedido">Cambiar estado</button>
+          <button class="btn peligro firme" type="button" id="guardarPedidoSi" hidden>Sí, cambiarlo</button>
+          <button class="btn linea" type="button" id="cerrarPedido">Volver</button>
+        </div>
+        <!-- M5 · el enlace con el que el comprador sigue su pedido. -->
+        <div class="seguimiento" id="seguimientoCaja">
+          <h3 class="titulo-bloque" style="font-size:.95rem">Seguimiento para el comprador</h3>
+          <p class="dato" id="seguimientoTexto"></p>
+          <button class="btn linea chico" type="button" id="crearEnlace">Crear enlace de seguimiento</button>
+          <div id="enlaceCaja" hidden>
+            <input class="campo" id="enlaceUrl" readonly aria-label="Enlace de seguimiento">
+            <div class="pie-fila">
+              <button class="btn chico" type="button" id="copiarEnlace">Copiar</button>
+              <a class="btn linea chico" id="enviarEnlace" href="#" target="_blank" rel="noopener">Mandarlo por WhatsApp</a>
+            </div>
+          </div>
+          <p class="aviso" id="avisoEnlace" role="status" hidden></p>
+        </div>
+      </section>
+    </div>
+
+      <div id="tableroGraficas"></div>
+    </div>
+
+    <!-- ═══════════════ TIENDA ═══════════════ -->
+    <div id="pantalla-tienda" hidden>
+    <!-- ═══ PRODUCTOS (D-2) ═══ -->
+    <div id="vista-productos">
+    <div id="lista-vista">
+      <div class="herramientas">
+        <input class="campo" id="buscar" type="search" placeholder="Buscar por nombre o código" aria-label="Buscar productos">
+        <select class="campo" id="filtroCategoria" aria-label="Filtrar por categoría"></select>
+        <label class="check"><input type="checkbox" id="verApagados"> Ver desactivados</label>
+        <button class="btn" type="button" id="nuevo">+ Nuevo producto</button>
+      </div>
+      <p class="aviso" id="avisoLista" role="status" hidden></p>
+      <p class="cuenta" id="cuenta"></p>
+      <div class="lista" id="lista"></div>
+    </div>
+
+    <section id="editor" class="tarjeta" hidden aria-labelledby="tituloEditor" style="margin:16px 0 40px">
+      <h2 id="tituloEditor">Producto</h2>
+      <form id="formProducto" novalidate>
+        <label for="f-nombre">Nombre</label>
+        <input class="campo" id="f-nombre" maxlength="120" required>
+
+        <label for="f-id">Código</label>
+        <input class="campo" id="f-id" maxlength="60" autocapitalize="none" spellcheck="false">
+        <p class="ayuda" id="ayuda-id">Minúsculas, sin espacios ni tildes. Se arma solo con el nombre;
+          <b>no se puede cambiar después</b>, porque lo usan los pedidos, las fotos y los enlaces.</p>
+
+        <div class="dos">
+          <div>
+            <label for="f-precio">Precio</label>
+            <input class="campo" id="f-precio" inputmode="numeric" placeholder="45000">
+          </div>
+          <div>
+            <label for="f-stock">Stock</label>
+            <input class="campo" id="f-stock" inputmode="numeric" placeholder="12">
+          </div>
+          <div>
+            <label for="f-precioAntes">Precio antes <span style="font-weight:400;color:var(--tenue)">(opcional)</span></label>
+            <input class="campo" id="f-precioAntes" inputmode="numeric">
+            <p class="ayuda">Si tiene descuento: el precio de antes, mayor que el de hoy.</p>
+          </div>
+          <div>
+            <label for="f-umbralBajo">«Pocas unidades» desde <span style="font-weight:400;color:var(--tenue)">(opcional)</span></label>
+            <input class="campo" id="f-umbralBajo" inputmode="numeric" placeholder="5">
+          </div>
+          <div>
+            <label for="f-formato">Formato</label>
+            <input class="campo" id="f-formato" maxlength="60" placeholder="Unidad, 500 g, Paquete x6…">
+          </div>
+          <div>
+            <label for="f-categoria">Categoría</label>
+            <input class="campo" id="f-categoria" maxlength="60" list="categorias">
+            <datalist id="categorias"></datalist>
+          </div>
+        </div>
+
+        <label for="f-descripcion">Descripción</label>
+        <textarea class="campo" id="f-descripcion" maxlength="2000"></textarea>
+
+        <label for="f-imagenes">Fotos</label>
+        <input class="campo" id="f-imagenes" spellcheck="false">
+        <p class="ayuda">Los nombres de los archivos en tu carpeta de fotos, separados por <b>|</b>
+          (ej: <code>camiseta-basica-1.jpg|camiseta-basica-2.jpg</code>). Hasta seis generales y cuatro por opción
+          (las de una opción se llaman <code>camiseta-basica--color-rosa-1.jpg</code>; al subirla desde aquí, el nombre se pone solo).</p>
+        <div id="subirFoto" hidden style="margin-top:8px">
+          <!-- C-1b · ¿de qué opción es la foto? El nombre lo pone el maestro. -->
+          <select class="campo" id="f-fotoOpcion" hidden aria-label="De qué opción es la foto" style="margin-bottom:8px"></select>
+          <label class="btn linea chico" style="display:inline-block;margin:0">
+            Subir una foto
+            <input type="file" id="f-foto" accept="image/*" hidden>
+          </label>
+          <span class="ayuda" id="estadoFoto" role="status"></span>
+        </div>
+        <p class="ayuda" id="fotoAlCrear">Las fotos se suben después de guardar el producto por primera vez.</p>
+
+        <label for="f-variantes">Variantes <span style="font-weight:400;color:var(--tenue)">(opcional)</span></label>
+        <input class="campo" id="f-variantes" spellcheck="false" placeholder="Talla: S|M|L ; Color: Rosa|Nude">
+        <p class="ayuda">Grupos separados por <b>;</b>, el nombre antes de <b>:</b> y las opciones con <b>|</b>.
+          Sin comas dentro de una opción: escribe 40.5, no 40,5.</p>
+
+        <!-- C-1b · EL STOCK DE CADA COMBINACIÓN. Las filas las genera el maestro
+             al guardar las variantes; aquí solo se ponen los números. -->
+        <fieldset id="combinaciones" hidden>
+          <legend>Stock por combinación</legend>
+          <p class="ayuda" id="ayudaCombinaciones"></p>
+          <div id="filasCombinaciones"></div>
+          <p class="aviso" id="avisoCombinaciones" role="status" hidden></p>
+          <button class="btn linea chico" type="button" id="guardarCombinaciones">Guardar el stock por combinación</button>
+        </fieldset>
+
+        <label for="f-referencia">Referencia interna <span style="font-weight:400;color:var(--tenue)">(opcional)</span></label>
+        <input class="campo" id="f-referencia" maxlength="60">
+
+        <div class="checks">
+          <label><input type="checkbox" id="f-activo"> A la venta</label>
+          <label><input type="checkbox" id="f-destacado"> Destacado</label>
+        </div>
+
+        <p class="aviso" id="avisoEditor" role="alert" hidden></p>
+
+        <div class="pie-form">
+          <button class="btn" type="submit" id="guardar">Guardar</button>
+          <button class="btn linea" type="button" id="cancelar">Cancelar</button>
+          <span class="separa"></span>
+          <button class="btn peligro" type="button" id="borrar">Borrar</button>
+          <button class="btn peligro firme" type="button" id="borrarSi" hidden>Sí, mandarlo a la Papelera</button>
+        </div>
+      </form>
+    </section>
+    </div>
+
+    <!-- ═══ AJUSTES (D-4 y 0.9.0) ═══
+         Todo lo de la pestaña Configuración de la hoja, más Envíos y Cupones.
+         Quedan fuera solo dos claves: `correo_ultimo` (la escribe el script) y
+         `panel_usuario` (va con la clave, que da el menú de la hoja). -->
+    <div id="ajustes">
+      <h2 class="titulo-bloque">Ajustes de tu tienda</h2>
+      <p class="ayuda" style="margin:0 0 10px">Lo mismo que la pestaña Configuración de tu hoja, que sigue
+        funcionando igual. Abre la sección que quieras cambiar.</p>
+      <p class="aviso info" id="avisoRol" hidden>Entraste como colaborador: aquí están los ajustes que puedes cambiar.
+        Lo demás —a dónde llegan la plata y los pedidos, los datos legales, los correos— lo cambia el dueño.</p>
+      <div id="vista-tienda">
+      <form id="formTienda" class="tarjeta" novalidate>
+        <div id="camposTienda"></div>
+        <div id="claveConfirmar" hidden>
+          <label for="t-clave">Tu clave del panel</label>
+          <input class="campo" id="t-clave" type="password" autocomplete="current-password">
+          <p class="ayuda">Cambiaste algo que decide a dónde llega la plata o los pedidos: por eso se pide tu clave otra vez.</p>
+        </div>
+        <p class="aviso" id="avisoTienda" role="alert" hidden></p>
+        <div class="pie-form">
+          <button class="btn" type="submit" id="guardarTienda">Guardar ajustes</button>
+          <button class="btn linea" type="button" id="deshacerTienda">Deshacer cambios</button>
+        </div>
+      </form>
+      </div>
+
+      <!-- 0.13.0 · 2.2 · Solo el dueño lo ve: el maestro manda `colaborador`
+           únicamente en su sesión. -->
+      <details class="seccion tarjeta" id="seccionColaborador" hidden>
+        <summary>Otra persona en el panel</summary>
+        <p class="ayuda">Un colaborador lleva la tienda contigo: productos, fotos, pedidos, envíos, cupones y publicar.
+          En los ajustes solo ve lo de la vitrina —textos, colores, portada— y si se cobra por WhatsApp o por pasarela.
+          No ve a dónde llega la plata o los pedidos, ni los datos legales, los correos o lo técnico.
+          Lo que haga queda a su nombre en el Registro.</p>
+        <p class="dato" id="estadoColaborador"></p>
+        <label for="c-usuario">Usuario del colaborador</label>
+        <input class="campo" id="c-usuario" autocapitalize="none" spellcheck="false" maxlength="30" autocomplete="off">
+        <label for="c-clave">Tu clave del panel</label>
+        <input class="campo" id="c-clave" type="password" autocomplete="current-password">
+        <p class="ayuda">Se pide cada vez: con una sesión abierta en un celular ajeno, crear un colaborador sería dejar una llave de repuesto.</p>
+        <div class="pie-form">
+          <button class="btn" type="button" id="darColaborador">Darle una clave</button>
+          <button class="btn peligro" type="button" id="quitarColaborador" hidden>Quitarle el acceso</button>
+        </div>
+        <div id="claveColaborador" hidden>
+          <p class="aviso bien"><b>Clave del colaborador:</b> <code id="claveColaboradorTexto"></code><br>
+            Apúntala y dásela en persona: es la única vez que se ve. Si la pierde, le das otra desde aquí.</p>
+        </div>
+        <p class="aviso" id="avisoColaborador" role="status" hidden></p>
+      </details>
+
+      <!-- 0.14.0 · La versión de la tienda y el botón para actualizarla. Solo
+           el dueño: publica el maestro y cambia el código. -->
+      <details class="seccion tarjeta" id="seccionVersion" hidden>
+        <summary>Versión de tu tienda</summary>
+        <p class="dato" id="estadoVersion">Revisando…</p>
+        <p class="ayuda">Actualizar trae la última versión de la tienda, prueba TODO y solo entonces
+          publica. Tarda entre 10 y 20 minutos y tu tienda sigue vendiendo mientras tanto. Si algo falla,
+          queda como estaba.</p>
+        <div class="pie-form">
+          <button class="btn" type="button" id="actualizarTienda" hidden>Actualizar ahora</button>
+        </div>
+        <p class="aviso" id="avisoVersion" role="status" hidden></p>
+      </details>
+
+      <details class="seccion tarjeta" id="seccionEnvios">
+        <summary>Zonas de envío</summary>
+        <p class="ayuda">Lo que el comprador elige al pedir. El código no se cambia después de creado: viaja en los pedidos.</p>
+        <div id="listaEnvios"></div>
+        <p class="aviso" id="avisoEnvios" role="status" hidden></p>
+        <button class="btn linea chico" type="button" id="nuevoEnvio">+ Nueva zona</button>
+      </details>
+
+      <details class="seccion tarjeta" id="seccionCupones">
+        <summary>Cupones</summary>
+        <p class="ayuda">Funcionan en cuanto los guardas: no hace falta publicar. Un cupón que ya se usó no se borra; se desactiva.</p>
+        <div id="listaCupones"></div>
+        <p class="aviso" id="avisoCupones" role="status" hidden></p>
+        <button class="btn linea chico" type="button" id="nuevoCupon">+ Nuevo cupón</button>
+      </details>
+    </div>
+    </div>
+  </section>
+</main>
+
+<script>
+/* ============================================================================
+   EL PANEL DEL COMERCIANTE (D-2)
+   ----------------------------------------------------------------------------
+   Una página sin servidor propio: todo lo que sabe, lo sabe preguntándole al
+   maestro de su tienda, y todo lo que escribe, lo escribe en la hoja. No
+   guarda nada en otra parte.
+
+   TRES REGLAS QUE ESTA PÁGINA NO PUEDE ROMPER, y las tres las comprueba
+   admin.js:
+
+   1. NI LA CLAVE NI EL TESTIGO VAN EN UNA DIRECCIÓN. Todo sale por POST. La
+      dirección se queda en el historial del navegador del mostrador.
+
+   2. UN GUARDADO QUE NO SE SABE SI LLEGÓ SE REINTENTA CON EL MISMO NÚMERO DE
+      OPERACIÓN. El número nace al abrir el formulario, no al pulsar Guardar;
+      así un reintento es el mismo gesto y no uno nuevo, y el maestro no crea
+      dos veces.
+
+   3. LO QUE VIENE DE LA HOJA SE PINTA COMO TEXTO. Nombres, descripciones y
+      códigos los escribió una persona en una celda, y una celda admite
+      cualquier cosa.
+   ============================================================================ */
+const SCRIPT_URL = "";
+let NEGOCIO = "";
+
+const $ = s => document.querySelector(s);
+const escapar = t => String(t == null ? "" : t)
+  .replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pesos = n => "$" + Math.round(Number(n) || 0).toLocaleString("es-CO");
+
+/* EL TESTIGO VIVE EN sessionStorage, no en localStorage: se va con la
+   pestaña. Si el panel se queda abierto en el mostrador, las ocho horas del
+   testigo lo cierran igual; si se cierra la pestaña, se cierra la sesión. */
+const TESTIGO = "panel-testigo";
+function testigo(){ try{ return sessionStorage.getItem(TESTIGO) || ""; }catch(e){ return ""; } }
+function guardarTestigo(t){ try{ t ? sessionStorage.setItem(TESTIGO, t) : sessionStorage.removeItem(TESTIGO); }catch(e){} }
+
+let productos = [], categorias = [];
+let editando = null;          // el producto como se leyó (con su versión), o null si es nuevo
+let operacion = null;         // el número de esta operación, nacido al abrir el formulario
+let codigoTocado = false;     // si el comerciante escribió el código a mano
+
+function nuevaOperacion(){
+  const a = new Uint8Array(12);
+  (window.crypto || window.msCrypto).getRandomValues(a);
+  return "op-" + Array.from(a, b => b.toString(16).padStart(2, "0")).join("");
+}
+
+/* ── Hablar con el maestro ─────────────────────────────────────────────────
+   Texto plano a propósito: con application/json el navegador pregunta antes
+   por CORS, y Apps Script no contesta esa pregunta. */
+async function llamar(a, datos){
+  const cuerpo = Object.assign({ a: a }, datos || {});
+  const t = testigo();
+  if (t && a !== "entrar") cuerpo.k = t;
+  const r = await fetch(SCRIPT_URL, {
+    method: "POST", redirect: "follow",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(cuerpo)
+  });
+  const d = await r.json();
+  /* La sesión se cae en cualquier respuesta: vuelve al formulario de entrada
+     con el motivo dicho, en vez de dejar botones que fallan uno por uno. */
+  if (d && !d.ok && /Sesión no válida/.test(d.error || "") && a !== "entrar") {
+    cerrarSesion("Tu sesión terminó. Entra de nuevo.");
+    throw new Error("sesion");
+  }
+  return d;
+}
+
+/* ── Qué se ve ── */
+function mostrar(vista){
+  $("#cargandoPanel").hidden = vista !== "cargando";
+  $("#entrar").hidden = vista !== "entrar";
+  $("#sinHoja").hidden = vista !== "sinHoja";
+  $("#panel").hidden = vista !== "panel";
+  $("#quien").hidden = vista !== "panel";
+}
+function aviso(sel, clase, texto){
+  const el = $(sel);
+  el.hidden = !texto;
+  el.className = "aviso" + (clase ? " " + clase : "");
+  el.textContent = texto || "";
+}
+
+/* ── Entrar y salir ── */
+async function entrar(ev){
+  ev.preventDefault();
+  const u = $("#usuario").value.trim(), c = $("#clave").value;
+  if (!u || !c) { aviso("#avisoEntrar", "mal", "Escribe tu usuario y tu clave."); return; }
+  $("#botonEntrar").disabled = true;
+  aviso("#avisoEntrar", "", "");
+  esperando(true);
+  try {
+    const r = await llamar("entrar", { u: u, c: c });
+    if (!r.ok) { aviso("#avisoEntrar", "mal", r.error || "No se pudo entrar."); return; }
+    guardarTestigo(r.testigo);
+    $("#clave").value = "";          // la clave no se queda en la página
+    await abrirPanel(r.usuario, r.rol);
+  } catch (e) {
+    aviso("#avisoEntrar", "mal", "No se pudo hablar con tu tienda. Revisa la conexión e inténtalo de nuevo.");
+  } finally {
+    $("#botonEntrar").disabled = false;
+    esperando(false);
+  }
+}
+
+/* EL INDICADOR DE ENTRADA. El botón gira y dice «Entrando…»; si pasan cuatro
+   segundos, se explica por qué: Google tiene dormido el maestro de la tienda y
+   lo despierta la primera petición. Es lo más lento de todo el panel y lo
+   único que no se puede acelerar desde aquí; lo que sí se puede es no dejar a
+   nadie mirando un botón quieto. */
+let relojEspera = null;
+function esperando(si){
+  const b = $("#botonEntrar");
+  b.classList.toggle("ocupado", si);
+  b.querySelector(".texto-boton").textContent = si ? "Entrando…" : "Entrar";
+  clearTimeout(relojEspera);
+  $("#esperaEntrar").hidden = true;
+  if (si) relojEspera = setTimeout(() => {
+    $("#esperaTexto").textContent = "Tu tienda se está despertando: la primera entrada del día puede tardar unos segundos más. No hace falta pulsar otra vez.";
+    $("#esperaEntrar").hidden = false;
+  }, 4000);
+}
+
+/* ── 2.3 · recuperar la clave ── */
+async function pedirCodigo(){
+  const b = $("#pedirCodigo");
+  b.disabled = true; b.classList.add("ocupado");
+  try {
+    const r = await llamar("recuperar_pedir", {});
+    if (!r.ok) { aviso("#avisoRecuperar", "mal", r.error || "No se pudo mandar el código."); return; }
+    aviso("#avisoRecuperar", "bien", "Te mandamos el código a " + (r.correo || "el correo de la tienda") +
+          ". Vale " + (r.minutos || 15) + " minutos; revisa también el spam.");
+    $("#cajaCodigo").hidden = false;
+    $("#codigo").focus();
+  } catch (e) { aviso("#avisoRecuperar", "mal", "No se pudo hablar con tu tienda."); }
+  finally { b.disabled = false; b.classList.remove("ocupado"); }
+}
+async function usarCodigo(){
+  const b = $("#usarCodigo");
+  const codigo = $("#codigo").value.replace(/\D/g, "");
+  if (codigo.length !== 8) { aviso("#avisoRecuperar", "mal", "El código tiene 8 cifras."); return; }
+  b.disabled = true; b.classList.add("ocupado");
+  /* Lo que el dueño vio lento (0.12.0): se dice qué está pasando. */
+  aviso("#avisoRecuperar", "info", "Actualizando tu clave en el sistema… puede tardar unos segundos.");
+  try {
+    const r = await llamar("recuperar_confirmar", { codigo: codigo });
+    if (!r.ok) { aviso("#avisoRecuperar", "mal", r.error || "Ese código no sirve."); return; }
+    $("#codigo").value = "";
+    $("#cajaCodigo").hidden = true;
+    $("#claveNuevaTexto").textContent = r.clave;
+    $("#claveNueva").hidden = false;
+    aviso("#avisoRecuperar", "", "");
+    $("#usuario").value = r.usuario || $("#usuario").value;
+    $("#clave").value = r.clave;
+  } catch (e) { aviso("#avisoRecuperar", "mal", "No se pudo hablar con tu tienda."); }
+  finally { b.disabled = false; b.classList.remove("ocupado"); }
+}
+
+function cerrarSesion(motivo){
+  guardarTestigo("");
+  clearTimeout(sondeo);
+  productos = []; editando = null; datosTablero = null; productosLeidos = false; clavesTienda = [];
+  pedidoAbierto = null; todosLosPedidos = null; ultimaTienda = "";
+  $("#lista").innerHTML = ""; $("#tableroCifras").innerHTML = ""; $("#tableroGraficas").innerHTML = "";
+  $("#camposTienda").innerHTML = ""; $("#listaEnvios").innerHTML = ""; $("#listaCupones").innerHTML = "";
+  $("#seccionColaborador").hidden = true; $("#claveColaborador").hidden = true; $("#c-usuario").value = "";
+  $("#seccionVersion").hidden = true;
+  $("#consultadoTablero").textContent = ""; $("#avisoCobro").hidden = true;
+  mostrar("entrar");
+  aviso("#avisoEntrar", motivo ? "info" : "", motivo || "");
+}
+
+let ROL = "dueño";
+async function abrirPanel(usuario, rol){
+  ROL = rol === "colaborador" ? "colaborador" : "dueño";
+  $("#usuarioActual").textContent = (usuario || "") + (ROL === "colaborador" ? " · colaborador" : "");
+  $("#avisoRol").hidden = ROL !== "colaborador";
+  $("#seccionColaborador").hidden = true;          // lo enciende la configuración, si es del dueño
+  mostrar("panel");
+  cerrarEditor();
+  /* Se entra por Ventas: es lo que se mira cada día. Los productos y los
+     ajustes se piden al abrir Tienda, no antes. */
+  mostrarVista("ventas");
+  revisarPublicacion();                // no se espera: la lista no tiene por qué esperar a GitHub
+}
+
+/* ── La lista ── */
+/* No borra el aviso de la lista al empezar: quien llama acaba de poner ahí
+   «Guardado: … se verá al publicar», y borrarlo en el mismo instante es
+   decirlo sin que nadie alcance a leerlo. (Lo cazó admin.js.) */
+async function cargar(){
+  try {
+    const r = await llamar("productos");
+    if (!r.ok) { aviso("#avisoLista", "mal", r.error || "No se pudo leer el catálogo."); return; }
+    productos = r.productos || [];
+    categorias = r.categorias || [];
+    productosLeidos = true;
+    pintarFiltros();
+    pintarLista();
+  } catch (e) {
+    if (e.message !== "sesion") aviso("#avisoLista", "mal", "No se pudo hablar con tu tienda. Revisa la conexión.");
+  }
+}
+
+function pintarFiltros(){
+  const sel = $("#filtroCategoria"), antes = sel.value;
+  sel.innerHTML = '<option value="">Todas las categorías</option>' +
+    categorias.map(c => `<option value="${escapar(c)}">${escapar(c)}</option>`).join("");
+  sel.value = categorias.indexOf(antes) !== -1 ? antes : "";
+  $("#categorias").innerHTML = categorias.map(c => `<option value="${escapar(c)}">`).join("");
+}
+
+function visibles(){
+  const q = $("#buscar").value.trim().toLowerCase();
+  const cat = $("#filtroCategoria").value;
+  const apagados = $("#verApagados").checked;
+  return productos.filter(p =>
+    (apagados || p.activo) &&
+    (!cat || (p.categoria || "Otros") === cat) &&
+    (!q || (p.nombre + " " + p.id).toLowerCase().indexOf(q) !== -1));
+}
+
+function pintarLista(){
+  const lista = visibles();
+  const apagados = productos.filter(p => !p.activo).length;
+  $("#cuenta").textContent = lista.length + " de " + productos.length + " productos" +
+    (apagados && !$("#verApagados").checked ? " · " + apagados + " desactivados ocultos" : "");
+  if (!lista.length) {
+    $("#lista").innerHTML = '<p class="vacio">No hay productos con ese filtro.</p>';
+    return;
+  }
+  /* Los ids NO van dentro de un onclick: van en data-id, y los botones se
+     atienden por delegación. Un código raro escrito a mano en la hoja no puede
+     convertirse en código ejecutable aquí. */
+  $("#lista").innerHTML = lista.map(p => `
+    <article class="fila${p.activo ? "" : " apagado"}" data-id="${escapar(p.id)}">
+      <div>
+        <h3>${escapar(p.nombre)}${p.activo ? "" : '<span class="etiqueta off">Desactivado</span>'}${
+          p.problemas && p.problemas.length ? `<span class="etiqueta mal">Revisar: ${escapar(p.problemas.join(", "))}</span>` : ""}</h3>
+        <p class="datos">${escapar(p.id)} · <b>${p.problemas.indexOf("Precio") === -1 ? pesos(p.precio) : escapar(p.precio)}</b>
+          · Stock <b>${escapar(p.stock)}</b>${p.categoria ? " · " + escapar(p.categoria) : ""}</p>
+      </div>
+      <div class="acciones">
+        <button class="btn linea chico" type="button" data-accion="activar">${p.activo ? "Desactivar" : "Activar"}</button>
+        <button class="btn chico" type="button" data-accion="editar">Editar</button>
+      </div>
+    </article>`).join("");
+}
+
+async function alPulsarLista(ev){
+  const b = ev.target.closest("button[data-accion]");
+  if (!b) return;
+  const id = b.closest(".fila").dataset.id;
+  const p = productos.find(x => x.id === id);
+  if (!p) return;
+  if (b.dataset.accion === "editar") abrirEditor(p);
+  if (b.dataset.accion === "activar") {
+    b.disabled = true;
+    try {
+      const r = await llamar("activar_producto", { op: nuevaOperacion(), id: p.id, activo: !p.activo });
+      if (!r.ok) { aviso("#avisoLista", "mal", r.error); return; }
+      p.activo = r.activo; p.version = r.version;
+      aviso("#avisoLista", "bien", (r.activo ? "Activado: " : "Desactivado: ") + p.nombre +
+            ". Se verá en la tienda al publicar.");
+      pintarLista();
+      revisarPublicacion();
+    } catch (e) {
+      if (e.message !== "sesion") aviso("#avisoLista", "mal", "No se pudo hablar con tu tienda.");
+    } finally { b.disabled = false; }
+  }
+}
+
+/* ── El formulario ── */
+const CAMPOS = ["id","nombre","formato","categoria","precio","stock","precioAntes",
+                "umbralBajo","descripcion","imagenes","variantes","referencia"];
+const NOMBRE_DEL_CAMPO = { "Precio":"precio", "Stock":"stock", "Precio antes":"precioAntes", "Umbral bajo":"umbralBajo" };
+
+/* El código se arma solo desde el nombre mientras nadie lo toque: minúsculas,
+   sin tildes, guiones. Normalizarlo AQUÍ, a la vista, es lo que permite que el
+   maestro sea estricto sin que eso se sienta como un error. */
+function codigoDesde(t){
+  return String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase().replace(/ñ/g, "n").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+}
+
+function abrirEditor(p){
+  editando = p || null;
+  operacion = nuevaOperacion();
+  codigoTocado = !!p;
+  $("#lista-vista").hidden = true;
+  $("#ajustes").hidden = true;
+  $("#editor").hidden = false;
+  $("#tituloEditor").textContent = p ? "Editar producto" : "Nuevo producto";
+  CAMPOS.forEach(k => { const el = $("#f-" + k); el.value = p ? (p[k] == null ? "" : p[k]) : ""; el.classList.remove("mal"); });
+  $("#f-activo").checked = p ? !!p.activo : true;
+  $("#f-destacado").checked = p ? !!p.destacado : false;
+  $("#f-id").readOnly = !!p;
+  $("#ayuda-id").hidden = !!p;
+  $("#borrar").hidden = !p;
+  $("#borrarSi").hidden = true;
+  /* Subir fotos pide un producto que ya exista: el nombre del archivo sale de
+     su código, y el código de un producto sin guardar todavía puede cambiar. */
+  $("#subirFoto").hidden = !p;
+  $("#fotoAlCrear").hidden = !!p;
+  $("#estadoFoto").textContent = "";
+  pintarCombinaciones(p);
+  /* Lo que la hoja no sabe leer se marca en rojo, con su texto tal cual. */
+  if (p && p.problemas && p.problemas.length) {
+    p.problemas.forEach(n => { const k = NOMBRE_DEL_CAMPO[n]; if (k) $("#f-" + k).classList.add("mal"); });
+    aviso("#avisoEditor", "mal", "En la hoja hay algo que no se entiende: " + p.problemas.join(", ") +
+          ". Corrígelo aquí; mientras tanto la tienda no puede venderlo bien.");
+  } else aviso("#avisoEditor", "", "");
+  $("#f-nombre").focus();
+  window.scrollTo(0, 0);
+}
+
+function cerrarEditor(){
+  editando = null; operacion = null;
+  $("#editor").hidden = true;
+  $("#lista-vista").hidden = false;
+  $("#ajustes").hidden = false;
+}
+
+function leerFormulario(){
+  const d = {};
+  CAMPOS.forEach(k => d[k] = $("#f-" + k).value.trim());
+  d.activo = $("#f-activo").checked;
+  d.destacado = $("#f-destacado").checked;
+  return d;
+}
+
+let guardando = false;
+async function guardar(ev){
+  ev.preventDefault();
+  if (guardando) return;
+  const d = leerFormulario();
+  if (!d.nombre) { aviso("#avisoEditor", "mal", "Falta el nombre."); $("#f-nombre").focus(); return; }
+  if (!editando) d.id = codigoDesde(d.id || d.nombre);
+  guardando = true; $("#guardar").disabled = true;
+  aviso("#avisoEditor", "", "");
+  const datos = { op: operacion, producto: d };
+  if (editando) datos.version = editando.version; else datos.nuevo = true;
+  try {
+    const r = await llamar("guardar_producto", datos);
+    if (!r.ok) {
+      if (r.cambiado) {
+        aviso("#avisoEditor", "mal", r.error);
+        /* La operación queda gastada: lo que se intente después es otro gesto,
+           sobre la versión nueva. */
+        operacion = nuevaOperacion();
+        return;
+      }
+      aviso("#avisoEditor", "mal", r.error || "No se pudo guardar.");
+      operacion = nuevaOperacion();       // rechazada: la próxima es otra operación
+      return;
+    }
+    aviso("#avisoLista", "bien", (editando ? "Guardado: " : "Creado: ") + d.nombre +
+          ". Se verá en la tienda al publicar.");
+    cerrarEditor();
+    revisarPublicacion();
+    await cargar();
+  } catch (e) {
+    if (e.message === "sesion") return;
+    /* NO SABEMOS SI LLEGÓ. Se dice así, y el botón reintenta CON EL MISMO
+       número: si había llegado, el maestro contesta lo mismo sin repetirlo. */
+    aviso("#avisoEditor", "mal", "No sabemos si se guardó: se perdió la conexión. " +
+          "Pulsa Guardar otra vez; no se va a duplicar.");
+  } finally {
+    guardando = false; $("#guardar").disabled = false;
+  }
+}
+
+/* ── Subir una foto (D-2c) ─────────────────────────────────────────────────
+   SE ACHICA AQUÍ, ANTES DE MANDARLA. Una foto de celular pesa 4 MB, y en
+   base64 un tercio más; por la señal de un mostrador eso es medio minuto o un
+   corte a la mitad. A 1600 px de lado y en JPEG queda en unos cientos de KB y
+   se ve igual en la tienda, que no la sirve a más de 900. Si el navegador no
+   sabe leer el formato —un HEIC en Chrome—, se dice y se ofrece el camino de
+   siempre: subirla a mano al Drive. */
+const LADO_MAXIMO = 1600;
+
+function achicar(archivo){
+  return new Promise((resolver, fallar) => {
+    const url = URL.createObjectURL(archivo);
+    const img = new Image();
+    img.onload = () => {
+      const escala = Math.min(1, LADO_MAXIMO / Math.max(img.naturalWidth, img.naturalHeight));
+      const w = Math.max(1, Math.round(img.naturalWidth * escala));
+      const h = Math.max(1, Math.round(img.naturalHeight * escala));
+      const lienzo = document.createElement("canvas");
+      lienzo.width = w; lienzo.height = h;
+      const ctx = lienzo.getContext("2d");
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h);      // un PNG transparente no sale negro
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolver(lienzo.toDataURL("image/jpeg", 0.85).split(",")[1]);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); fallar(new Error("formato")); };
+    img.src = url;
+  });
+}
+
+async function subirFoto(){
+  const entrada = $("#f-foto");
+  const archivo = entrada.files && entrada.files[0];
+  entrada.value = "";
+  if (!archivo || !editando) return;
+  const estado = $("#estadoFoto");
+  estado.textContent = "Preparando la foto…";
+  let datos;
+  try { datos = await achicar(archivo); }
+  catch (e) {
+    estado.textContent = "";
+    aviso("#avisoEditor", "mal", "Esa foto no se puede leer aquí (¿es HEIC?). Súbela a mano a tu carpeta " +
+          "de fotos en Drive y escribe su nombre en Fotos.");
+    return;
+  }
+  estado.textContent = "Subiendo…";
+  const opFoto = nuevaOperacion();
+  try {
+    const opcion = $("#f-fotoOpcion").hidden ? "" : $("#f-fotoOpcion").value;
+    const r = await llamar("subir_foto", { op: opFoto, id: editando.id, tipo: "image/jpeg", datos: datos, opcion: opcion });
+    if (!r.ok) { estado.textContent = ""; aviso("#avisoEditor", "mal", r.error); return; }
+    /* LA FOTO CAMBIÓ LA FILA, así que la versión de este formulario ya es
+       vieja. Se toma la nueva AQUÍ: si no, el siguiente «Guardar» contestaría
+       «este producto cambió mientras lo editabas» por culpa de la foto que el
+       propio comerciante acaba de subir. */
+    editando.version = r.version;
+    editando.imagenes = r.imagenes;
+    $("#f-imagenes").value = r.imagenes;
+    estado.textContent = "Subida: " + r.nombre + ". Sale en la tienda al publicar.";
+    revisarPublicacion();
+  } catch (e) {
+    if (e.message === "sesion") return;
+    estado.textContent = "";
+    aviso("#avisoEditor", "mal", "No sabemos si la foto subió: se perdió la conexión. " +
+          "Vuelve a abrir el producto para ver si ya está en Fotos antes de subirla otra vez.");
+  }
+}
+
+/* ── C-1b · EL STOCK POR COMBINACIÓN ─────────────────────────────────────
+   Una fila por combinación, con el número TAL COMO ESTÁ en la hoja —vacío es
+   «todavía no lo cuento»—. Mientras todas estén vacías el producto se vende
+   con su stock de siempre; en cuanto hay un número, manda esto y el stock del
+   producto pasa a ser la suma, y el campo Stock de arriba se bloquea. */
+function gruposDeTexto(t){
+  return String(t || "").split(";").map(x => x.trim()).filter(Boolean).map(x => {
+    const i = x.indexOf(":");
+    return i === -1 ? null : { nombre: x.slice(0, i).trim(), opciones: x.slice(i + 1).split("|").map(o => o.trim()).filter(Boolean) };
+  }).filter(g => g && g.nombre && g.opciones.length);
+}
+
+function pintarCombinaciones(p){
+  const combos = (p && p.combinaciones) || [];
+  const vivas = combos.filter(c => !c.noCasa);
+  $("#combinaciones").hidden = !vivas.length;
+  $("#f-stock").readOnly = !!(p && p.porCombinacion);
+  $("#f-stock").title = p && p.porCombinacion ? "Es la suma del stock por combinación" : "";
+  $("#ayudaCombinaciones").textContent = p && p.porCombinacion
+    ? "Este producto se vende por combinación: el Stock de arriba es la suma de estas."
+    : "Mientras estén todas vacías, el producto se vende con el Stock de arriba. Al poner un número, pasa a venderse por combinación.";
+  $("#filasCombinaciones").innerHTML = vivas.map((c, i) => `
+    <div class="fila-combo">
+      <label for="combo${i}">${escapar(c.combinacion)}</label>
+      <input class="campo" id="combo${i}" inputmode="numeric" data-combo="${escapar(c.combinacion)}"
+             data-version="${escapar(c.version)}" data-antes="${escapar(c.stock)}" value="${escapar(c.stock)}">
+      <p class="error-campo" hidden></p>
+    </div>`).join("");
+  aviso("#avisoCombinaciones", "", "");
+  /* ¿De qué opción es la foto? «General» o una opción de un grupo. */
+  const grupos = gruposDeTexto(p ? p.variantes : "");
+  const sel = $("#f-fotoOpcion");
+  sel.hidden = !grupos.length;
+  sel.innerHTML = `<option value="">Foto general del producto</option>` + grupos.map(g =>
+    g.opciones.map(o => `<option value="${escapar(g.nombre + "=" + o)}">Foto de ${escapar(g.nombre.toLowerCase())}: ${escapar(o)}</option>`).join("")).join("");
+}
+
+let opCombinaciones = null;
+async function guardarCombinaciones(){
+  if (!editando) return;
+  const cambios = {}, versiones = {};
+  document.querySelectorAll("#filasCombinaciones input").forEach(el => {
+    const v = el.value.trim();
+    if (v !== el.dataset.antes) { cambios[el.dataset.combo] = v; versiones[el.dataset.combo] = el.dataset.version; }
+    el.classList.remove("mal");
+    el.nextElementSibling.hidden = true;
+  });
+  if (!Object.keys(cambios).length) { aviso("#avisoCombinaciones", "info", "No cambiaste nada."); return; }
+  if (!opCombinaciones) opCombinaciones = nuevaOperacion();
+  $("#guardarCombinaciones").disabled = true;
+  try {
+    const r = await llamar("guardar_combinaciones", { op: opCombinaciones, id: editando.id, cambios, versiones });
+    opCombinaciones = null;
+    if (!r.ok) {
+      document.querySelectorAll("#filasCombinaciones input").forEach(el => {
+        const e = (r.errores || {})[el.dataset.combo];
+        if (e) { el.classList.add("mal"); el.nextElementSibling.hidden = false; el.nextElementSibling.textContent = e; }
+      });
+      aviso("#avisoCombinaciones", "mal", r.error || "No se guardó.");
+      return;
+    }
+    await cargar();
+    const nuevo = productos.find(x => x.id === editando.id);
+    if (nuevo) { editando = nuevo; $("#f-stock").value = nuevo.stock; pintarCombinaciones(nuevo); }
+    aviso("#avisoCombinaciones", "bien", "Guardado. Se verá en la tienda al publicar.");
+    revisarPublicacion();
+  } catch (e) {
+    if (e.message !== "sesion") aviso("#avisoCombinaciones", "mal", "No sabemos si se guardó: se perdió la conexión. Pulsa otra vez; no se va a repetir.");
+  } finally { $("#guardarCombinaciones").disabled = false; }
+}
+
+/* Borrar pide dos pasos y dice a dónde va. Sin window.confirm: bloquea la
+   pestaña y en un celular se pulsa sin leer. */
+function pedirBorrar(){ $("#borrar").hidden = true; $("#borrarSi").hidden = false; $("#borrarSi").focus(); }
+async function borrar(){
+  if (!editando) return;
+  $("#borrarSi").disabled = true;
+  try {
+    const r = await llamar("borrar_producto", { op: operacion, id: editando.id, version: editando.version });
+    if (!r.ok) { aviso("#avisoEditor", "mal", r.error); operacion = nuevaOperacion(); return; }
+    aviso("#avisoLista", "bien", "«" + editando.nombre + "» está en la Papelera de tu hoja. " +
+          "Si fue un error, se recupera copiando la fila de vuelta a Catálogo.");
+    cerrarEditor();
+    revisarPublicacion();
+    await cargar();
+  } catch (e) {
+    if (e.message !== "sesion") aviso("#avisoEditor", "mal", "No sabemos si se borró: se perdió la conexión. Pulsa otra vez; no se va a repetir.");
+  } finally { $("#borrarSi").disabled = false; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LAS PESTAÑAS
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* DOS PANTALLAS. Los nombres viejos siguen valiendo —«productos» es la
+   pantalla Tienda, «pedidos» y «tablero» son Ventas— para que nada que los
+   llame se quede apuntando a una pestaña que ya no existe. */
+let productosLeidos = false;
+function mostrarVista(v){
+  const pantalla = (v === "tienda" || v === "productos") ? "tienda" : "ventas";
+  ["ventas", "tienda"].forEach(x => {
+    $("#pantalla-" + x).hidden = x !== pantalla;
+    $("#tab-" + x).setAttribute("aria-selected", String(x === pantalla));
+  });
+  if (pantalla === "ventas") {
+    /* Una petición por visita para el tablero: si ya se leyó, se queda lo
+       leído. Los pedidos sí se releen: es lo que cambia mientras se mira. */
+    if (!datosTablero) cargarTablero();
+    if (!pedidoAbierto) cargarPedidos();
+  } else {
+    /* Los ajustes se releen en cada visita, como antes la pestaña Tu tienda:
+       alguien pudo cambiarlos en la hoja. Los productos, al entrar y al guardar. */
+    if (!productosLeidos) cargar();
+    cargarTienda();
+  }
+}
+
+/* Cuándo, dicho como lo dice una persona. */
+function hace(iso){
+  const t = Date.parse(iso || "");
+  if (!t) return "";
+  const min = Math.round((Date.now() - t) / 60000);
+  if (min < 1) return "hace un momento";
+  if (min < 60) return "hace " + min + " min";
+  const h = Math.round(min / 60);
+  if (h < 24) return "hace " + h + (h === 1 ? " hora" : " horas");
+  return "el " + new Date(t).toLocaleDateString("es-CO", { day: "numeric", month: "long" });
+}
+const fechaCorta = iso => { const t = Date.parse(iso || ""); return t
+  ? new Date(t).toLocaleString("es-CO", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : ""; };
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PUBLICAR (D-5)
+   ---------------------------------------------------------------------------
+   Tres cosas que el menú de la hoja nunca pudo decir: si hay algo sin publicar,
+   cuándo fue la última vez —se le pregunta a la TIENDA, no a la hoja—, y
+   mientras corre, cómo va.
+
+   Y UNA QUE NO SE PUEDE DECIR: si la tienda no contesta, el panel no sabe qué
+   está mostrando, y lo dice así. «Tu tienda está al día» cuando no se sabe es
+   la frase que hace que alguien no publique algo que tenía que publicar.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const NO_PUBLICA = '<span class="ayuda" style="display:block">Guardar no publica: la tienda muestra lo que guardas cuando publicas.</span>';
+let sondeo = null, pedidaEn = 0, opPublicar = null;
+
+async function revisarPublicacion(){
+  clearTimeout(sondeo);
+  try { pintarPublicacion(await llamar("publicacion")); }
+  catch (e) { if (e.message !== "sesion") pintarPublicacion(null); }
+}
+
+function barra(clase, html, boton){
+  $("#barraPublicar").className = "barra-publicar publicar" + (clase ? " " + clase : "");
+  $("#textoPublicar").innerHTML = html;
+  const b = $("#publicar");
+  b.hidden = !boton;
+  if (boton) { b.textContent = boton.texto; b.className = "btn" + (boton.linea ? " linea" : ""); b.disabled = false; }
+}
+
+function pintarPublicacion(r){
+  if (!r || !r.ok) {
+    barra("", "<b>No pude revisar tu tienda.</b> " + NO_PUBLICA, { texto: "Publicar ahora" });
+    return;
+  }
+  if (!r.puede) {
+    barra("", "<b>Publicar desde aquí todavía no está configurado.</b> " +
+      (r.falta === "permiso" ? "Falta el permiso para publicar. " : "Falta decir dónde vive la tienda. ") +
+      "Eso lo hace una vez quien la montó. Mientras tanto: menú de la hoja › Publicar ahora." + NO_PUBLICA, null);
+    return;
+  }
+  const c = r.corrida || {};
+  const deLaNuestra = pedidaEn && c.desde && Date.parse(c.desde) >= pedidaEn - 60000;
+  const esperandoQueArranque = pedidaEn && !deLaNuestra && Date.now() - pedidaEn < 3 * 60000;
+  const enlace = c.enlace ? ' <a href="' + escapar(c.enlace) + '" target="_blank" rel="noopener">Ver el detalle</a>' : "";
+
+  if (esperandoQueArranque || (deLaNuestra && c.estado !== "completed") ||
+      (!pedidaEn && c.estado && c.estado !== "completed")) {
+    barra("corriendo", "<b>Publicando…</b> Tarda unos minutos. Puedes seguir trabajando: esto se actualiza solo." + enlace, null);
+    sondeo = setTimeout(revisarPublicacion, 8000);
+    return;
+  }
+  if (deLaNuestra && c.estado === "completed") {
+    pedidaEn = 0;
+    if (c.resultado === "success") {
+      barra("bien", "<b>Publicado.</b> Tu tienda ya muestra los cambios." + enlace, { texto: "Publicar otra vez", linea: true });
+    } else {
+      /* Terminó mal: se dice, y se dice lo que importa — que la tienda NO quedó
+         a medias. El flujo o publica entero o no publica nada. */
+      barra("mal", "<b>La publicación no terminó bien.</b> Tu tienda sigue como estaba: no se publicó nada a medias. " +
+            "Si vuelve a pasar, avisa a quien te montó la tienda." + enlace, { texto: "Intentar otra vez" });
+    }
+    return;
+  }
+  if (r.pendientes === true) {
+    barra("pendiente", "<b>Tienes cambios sin publicar.</b> Tu tienda muestra lo publicado " + escapar(hace(r.servido)) + "." + NO_PUBLICA,
+          { texto: "Publicar ahora" });
+  } else if (r.pendientes === false) {
+    barra("", "<b>Tu tienda está al día.</b> Publicada " + escapar(hace(r.servido)) + "." + NO_PUBLICA,
+          { texto: "Publicar de todos modos", linea: true });
+  } else {
+    barra("", "<b>No pude comprobar qué está mostrando tu tienda.</b> Si guardaste algo, publícalo para que se vea." + NO_PUBLICA,
+          { texto: "Publicar ahora" });
+  }
+}
+
+async function publicar(){
+  const b = $("#publicar");
+  b.disabled = true;
+  /* El número de operación vive hasta que la respuesta llega: un doble toque,
+     o un reintento sin señal, es la MISMA publicación. */
+  if (!opPublicar) opPublicar = nuevaOperacion();
+  try {
+    const r = await llamar("publicar", { op: opPublicar });
+    opPublicar = null;
+    if (!r.ok) { barra("mal", "<b>No se pudo publicar.</b> " + escapar(r.error || ""), { texto: "Intentar otra vez" }); return; }
+    pedidaEn = Date.now();
+    barra("corriendo", "<b>Publicando…</b> Tarda unos minutos. Puedes seguir trabajando: esto se actualiza solo.", null);
+    sondeo = setTimeout(revisarPublicacion, 8000);
+  } catch (e) {
+    if (e.message === "sesion") return;
+    b.disabled = false;
+    barra("mal", "<b>No sabemos si se pidió la publicación:</b> se perdió la conexión. Pulsa otra vez; no se va a repetir.",
+          { texto: "Publicar ahora" });
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PEDIDOS (D-3)
+   ---------------------------------------------------------------------------
+   Cambiar el estado tiene el mismo efecto que en la hoja porque el maestro
+   llama a lo mismo. Lo que añade la página es DECIRLO ANTES: «al guardar se
+   descuentan 6 Pan integral», «al guardar vuelven al inventario…». El
+   comerciante que marca Cancelado un pedido pagado tiene que saber que el stock
+   vuelve, antes de que vuelva.
+   ═══════════════════════════════════════════════════════════════════════════ */
+let listaPedidos = [], estadosPedido = [], filtroEstado = "", pedidoAbierto = null, opPedido = null;
+
+/* ── 0.12.0 · LOS FILTROS SON INSTANTÁNEOS ────────────────────────────────
+   Antes cada toque en un filtro («Nuevo», «Pagado»…) o cada letra del buscador
+   era una ida y vuelta a Google: dos o tres segundos, la lista se vaciaba y
+   volvía, y si se tocaba otro filtro antes de que contestara el primero, la
+   respuesta vieja pisaba a la nueva —por eso a veces «tocaba dar clic dos
+   veces»—. Ahora se traen TODOS los pedidos una vez (hasta 200, el mismo tope
+   de siempre) y se filtra aquí, sin red. Solo si la tienda tiene más de 200
+   pedidos y se busca o se filtra, se le pregunta al maestro.
+
+   Y NINGUNA RESPUESTA VIEJA PISA A UNA NUEVA: cada pedido al maestro lleva un
+   número, y solo se pinta la del último. Mientras llega, se ve la lista de
+   antes, no un hueco. */
+let todosLosPedidos = null, conteoPedidos = {}, pedidosCompletos = true, turnoPedidos = 0, totalPedidos = 0;
+
+async function cargarPedidos(conFiltro){
+  const turno = ++turnoPedidos;
+  const q = $("#buscarPedido").value.trim();
+  const remoto = conFiltro && !pedidosCompletos;
+  if (todosLosPedidos) $("#cuentaPedidos").textContent = "Actualizando…";
+  else $("#listaPedidos").innerHTML = '<p class="vacio"><span class="girando" style="display:inline-block"></span> Cargando tus pedidos…</p>';
+  try {
+    const r = await llamar("pedidos", remoto ? { estado: filtroEstado, q: q } : {});
+    if (turno !== turnoPedidos) return;               // llegó tarde: ya hay otra en camino
+    if (!r.ok) { aviso("#avisoPedidos", "mal", r.error || "No se pudieron leer los pedidos."); return; }
+    estadosPedido = r.estados; conteoPedidos = r.conteo || {};
+    if (remoto) { listaPedidos = r.pedidos; pintarChips(conteoPedidos); pintarPedidos(r.cuantos); return; }
+    todosLosPedidos = r.pedidos; totalPedidos = r.cuantos;
+    pedidosCompletos = r.cuantos <= r.pedidos.length;
+    filtrarPedidos();
+  } catch (e) {
+    if (turno === turnoPedidos && e.message !== "sesion") aviso("#avisoPedidos", "mal", "No se pudo hablar con tu tienda.");
+  }
+}
+
+function filtrarPedidos(){
+  if (!todosLosPedidos) return;
+  const q = $("#buscarPedido").value.trim().toLowerCase();
+  if (!pedidosCompletos && (filtroEstado || q)) { cargarPedidos(true); return; }
+  listaPedidos = todosLosPedidos.filter(x =>
+    (!filtroEstado || (filtroEstado === "revisar" ? !x.estadoId : x.estadoId === filtroEstado)) &&
+    (!q || String(x.pedido).toLowerCase().indexOf(q) !== -1));
+  pintarChips(conteoPedidos);
+  pintarPedidos(filtroEstado || q ? listaPedidos.length : totalPedidos);
+}
+
+function pintarChips(conteo){
+  const total = Object.keys(conteo).reduce((a, k) => a + conteo[k], 0);
+  const chips = [{ id: "", rotulo: "Todos", n: total }]
+    .concat(estadosPedido.map(e => ({ id: e.id, rotulo: e.rotulo, n: conteo[e.id] || 0 })));
+  if (conteo.revisar) chips.push({ id: "revisar", rotulo: "Revisar", n: conteo.revisar });
+  $("#chipsEstados").innerHTML = chips.map(c =>
+    `<button type="button" data-estado="${escapar(c.id)}" aria-pressed="${c.id === filtroEstado}">${escapar(c.rotulo)} · ${c.n}</button>`).join("");
+}
+
+function claseEstado(p){ return p.estadoId || "revisar"; }
+
+function pintarPedidos(cuantos){
+  $("#cuentaPedidos").textContent = cuantos > listaPedidos.length
+    ? "Los " + listaPedidos.length + " más recientes de " + cuantos
+    : cuantos + (cuantos === 1 ? " pedido" : " pedidos");
+  if (!listaPedidos.length) { $("#listaPedidos").innerHTML = '<p class="vacio">No hay pedidos con ese filtro.</p>'; return; }
+  $("#listaPedidos").innerHTML = listaPedidos.map(p => `
+    <article class="fila" data-pedido="${escapar(p.pedido)}">
+      <div>
+        <h3>#${escapar(p.pedido)} <span class="estado ${escapar(claseEstado(p))}">${escapar(p.estado || "Sin estado")}</span></h3>
+        <p class="datos">${escapar(fechaCorta(p.fecha))} · <b>${pesos(p.total)}</b> · ${p.lineas.length} ${p.lineas.length === 1 ? "producto" : "productos"}${p.ciudad ? " · " + escapar(p.ciudad) : ""}</p>
+      </div>
+      <div class="acciones"><button class="btn chico" type="button" data-accion="ver">Ver</button></div>
+    </article>`).join("");
+}
+
+function vendido(id){ const e = estadosPedido.find(x => x.id === id); return !!(e && e.vendido); }
+
+function abrirPedido(p){
+  pedidoAbierto = p;
+  opPedido = nuevaOperacion();
+  $("#pedidos-lista-vista").hidden = true;
+  $("#resumenVentas").hidden = true; $("#tableroGraficas").hidden = true;
+  $("#pedido").hidden = false;
+  $("#tituloPedido").textContent = "Pedido #" + p.pedido;
+  $("#detallePedido").innerHTML =
+    (p.problema ? `<p class="aviso mal">${escapar(p.problema)}</p>` : "") +
+    `<p class="dato">${escapar(fechaCorta(p.fecha))}${p.ciudad ? " · " + escapar(p.ciudad) : ""}</p>
+     <table class="lineas">${p.lineas.map(l => `
+       <tr><td>${escapar(l.producto)}${l.variante ? `<br><span class="dato">${escapar(l.variante)}</span>` : ""}</td>
+           <td class="n">${l.cantidad} × ${pesos(l.precio)}</td><td class="n">${pesos(l.subtotal)}</td></tr>`).join("")}
+       <tr><td><b>Total</b>${p.cupon ? `<br><span class="dato">Cupón ${escapar(p.cupon)}</span>` : ""}</td><td></td><td class="n"><b>${pesos(p.total)}</b></td></tr>
+     </table>
+     ${p.fechaPago ? `<p class="dato">Pagado: <b>${escapar(fechaCorta(p.fechaPago))}</b></p>` : ""}
+     ${p.fechaDespacho ? `<p class="dato">Despachado: <b>${escapar(fechaCorta(p.fechaDespacho))}</b>${p.guia ? " · Guía " + escapar(p.guia) : ""}</p>` : ""}
+     ${p.pago ? `<p class="dato">Cobrado en línea: <b>${escapar(p.pago)}</b>${p.transaccion ? " · transacción " + escapar(p.transaccion) : ""}. Los datos de entrega están en la pestaña «Datos de entrega» de la hoja.</p>` : ""}
+     ${p.validacion ? `<p class="dato">Referencia de validación: ${escapar(p.validacion)}</p>` : ""}`;
+  /* Un estado que la hoja no entiende sale primero, tal cual y sin poder
+     elegirse: el comerciante ve qué dice y elige el bueno. No se muestra como
+     «Nuevo», que sería inventarse el estado de una venta. */
+  $("#p-estado").innerHTML = (p.estadoId ? "" : `<option value="" selected disabled>${escapar(p.estado || "(sin estado)")} — elige el correcto</option>`) +
+    estadosPedido.map(e => `<option value="${escapar(e.id)}" ${e.id === p.estadoId ? "selected" : ""}>${escapar(e.rotulo)}</option>`).join("");
+  $("#p-guia").value = p.guia || "";
+  pintarSeguimiento(p);
+  $("#guardarPedidoSi").hidden = true;
+  $("#guardarPedido").hidden = false;
+  aviso("#avisoPedido", "", "");
+  alCambiarEstado();
+  window.scrollTo(0, 0);
+}
+
+/* ── M5 · el enlace de seguimiento ──────────────────────────────────────────
+   El que va en el mensaje del comprador no se puede recuperar: la hoja guarda
+   solo su huella. Desde aquí se crea uno NUEVO —para un pedido de antes, o
+   para quien lo perdió—, y el anterior deja de servir; por eso, si ya había
+   uno, pide un segundo toque. */
+let opEnlace = null;
+function pintarSeguimiento(p){
+  opEnlace = null;
+  $("#enlaceCaja").hidden = true; $("#enlaceUrl").value = "";
+  aviso("#avisoEnlace", "", "");
+  const b = $("#crearEnlace");
+  b.dataset.seguro = p.seguimiento ? "" : "1";
+  b.textContent = p.seguimiento ? "Crear un enlace nuevo" : "Crear enlace de seguimiento";
+  b.classList.remove("firme");
+  $("#seguimientoTexto").textContent = p.seguimiento
+    ? "El comprador ya tiene su enlace: va en el mensaje de WhatsApp del pedido. Si lo perdió, crea uno nuevo (el anterior deja de funcionar)."
+    : "Este pedido no tiene enlace de seguimiento. Crea uno y mándaselo al comprador: con él ve en qué va su pedido.";
+}
+async function crearEnlace(){
+  const b = $("#crearEnlace"), p = pedidoAbierto;
+  if (!p) return;
+  if (!b.dataset.seguro) { b.dataset.seguro = "1"; b.textContent = "Sí, crear uno nuevo"; b.classList.add("firme"); return; }
+  if (!opEnlace) opEnlace = nuevaOperacion();
+  b.disabled = true;
+  try {
+    const r = await llamar("enlace_seguimiento", { op: opEnlace, pedido: p.pedido });
+    if (!r.ok) { opEnlace = null; aviso("#avisoEnlace", "mal", r.error || "No se pudo crear el enlace."); return; }
+    $("#enlaceUrl").value = r.url;
+    $("#enviarEnlace").href = "https://wa.me/?text=" + encodeURIComponent("Aquí puedes ver en qué va tu pedido #" + p.pedido + ": " + r.url);
+    $("#enlaceCaja").hidden = false;
+    p.seguimiento = true;
+    aviso("#avisoEnlace", "bien", "Listo. Cópialo y mándaselo al comprador.");
+  } catch (e) {
+    if (e.message !== "sesion") aviso("#avisoEnlace", "mal", "Se perdió la conexión. Pulsa otra vez: no se crean dos.");
+  } finally { b.disabled = false; }
+}
+async function copiarEnlace(){
+  const t = $("#enlaceUrl").value;
+  try { await navigator.clipboard.writeText(t); aviso("#avisoEnlace", "bien", "Copiado."); }
+  catch (e) { $("#enlaceUrl").select(); aviso("#avisoEnlace", "info", "Selecciónalo y cópialo a mano."); }
+}
+
+function efectoDe(p, nuevo){
+  const antes = p.lineas.some(l => /descontado/i.test(l.inventario));
+  const lista = p.lineas.map(l => l.cantidad + " × " + l.producto + (l.variante ? " (" + l.variante + ")" : "")).join(", ");
+  if (!nuevo || nuevo === p.estadoId) return { texto: "", devuelve: false };
+  if (vendido(nuevo) && !antes) return { texto: "Al guardar se descuentan del inventario: " + lista + ".", devuelve: false };
+  if (!vendido(nuevo) && antes) return { texto: "Al guardar VUELVEN al inventario: " + lista + ".", devuelve: true };
+  return { texto: "El inventario no cambia.", devuelve: false };
+}
+
+function alCambiarEstado(){
+  const nuevo = $("#p-estado").value;
+  $("#p-guia-caja").hidden = nuevo !== "despachado";
+  $("#p-efecto").textContent = efectoDe(pedidoAbierto, nuevo).texto;
+  $("#guardarPedidoSi").hidden = true;
+  $("#guardarPedido").hidden = false;
+}
+
+async function guardarEstadoPedido(confirmado){
+  const p = pedidoAbierto, nuevo = $("#p-estado").value;
+  if (!p || !nuevo) { aviso("#avisoPedido", "mal", "Elige un estado."); return; }
+  if (nuevo === p.estadoId && !(nuevo === "despachado" && $("#p-guia").value.trim() !== (p.guia || ""))) {
+    aviso("#avisoPedido", "info", "El pedido ya está en ese estado."); return;
+  }
+  /* LO QUE DEVUELVE STOCK O CANCELA PIDE UN SEGUNDO TOQUE, y dice qué va a
+     pasar. Sin window.confirm: en un celular se pulsa sin leer. */
+  const efecto = efectoDe(p, nuevo);
+  if (!confirmado && (efecto.devuelve || nuevo === "cancelado")) {
+    $("#guardarPedido").hidden = true;
+    $("#guardarPedidoSi").hidden = false;
+    $("#guardarPedidoSi").textContent = nuevo === "cancelado" ? "Sí, cancelar el pedido" : "Sí, cambiarlo";
+    aviso("#avisoPedido", "info", efecto.texto || "¿Seguro?");
+    return;
+  }
+  $("#guardarPedido").disabled = $("#guardarPedidoSi").disabled = true;
+  try {
+    const datos = { op: opPedido, pedido: p.pedido, estado: nuevo, version: p.version };
+    if (nuevo === "despachado") datos.guia = $("#p-guia").value.trim();
+    const r = await llamar("estado_pedido", datos);
+    if (!r.ok) {
+      aviso("#avisoPedido", "mal", r.error || "No se pudo cambiar.");
+      opPedido = nuevaOperacion();
+      return;
+    }
+    opPedido = nuevaOperacion();
+    abrirPedido(r.pedido);
+    const idx = listaPedidos.findIndex(x => x.pedido === r.pedido.pedido);
+    if (idx !== -1) listaPedidos[idx] = r.pedido;
+    aviso("#avisoPedido", "bien", "Listo: el pedido quedó en «" + r.pedido.estado + "»." +
+          (r.movidos ? " Inventario ajustado." : ""));
+  } catch (e) {
+    if (e.message !== "sesion") aviso("#avisoPedido", "mal", "No sabemos si se cambió: se perdió la conexión. Pulsa otra vez; no se va a repetir.");
+  } finally {
+    $("#guardarPedido").disabled = $("#guardarPedidoSi").disabled = false;
+  }
+}
+
+function cerrarPedido(){
+  pedidoAbierto = null;
+  $("#pedido").hidden = true;
+  $("#pedidos-lista-vista").hidden = false;
+  $("#resumenVentas").hidden = false; $("#tableroGraficas").hidden = false;
+  cargarPedidos();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TU TIENDA (D-4)
+   ---------------------------------------------------------------------------
+   UN VALOR QUE NO SE ENTIENDE SE MARCA Y NO SE DEGRADA. Si la hoja dice «tal
+   vez» donde tendría que decir Sí o No, aquí NO sale una casilla sin marcar
+   —que sería «No», y guardarlo apagaría algo que nadie apagó—: sale «tal vez»
+   en rojo como opción elegida, y hasta que no se elija otra cosa, esa clave no
+   se toca al guardar.
+   ═══════════════════════════════════════════════════════════════════════════ */
+let clavesTienda = [];
+
+/* 0.12.0 · Se relee en cada visita, pero SOLO SE REPINTA SI CAMBIÓ: repintar
+   lo mismo hacía «aparecer de a pocos» las secciones y cerraba lo que se
+   estaba mirando. Mientras llega la primera lectura, se dice. */
+let ultimaTienda = "", turnoTienda = 0;
+async function cargarTienda(){
+  const turno = ++turnoTienda;
+  if (!clavesTienda.length) $("#camposTienda").innerHTML = '<p class="dato"><span class="girando" style="display:inline-block"></span> Cargando tus ajustes…</p>';
+  try {
+    const r = await llamar("configuracion");
+    if (turno !== turnoTienda) return;
+    if (!r.ok) { aviso("#avisoTienda", "mal", r.error || "No se pudo leer la configuración."); return; }
+    const huellaTienda = JSON.stringify([r.claves, r.cobro, r.envios, r.cupones, r.colaborador]);
+    if (huellaTienda === ultimaTienda) return;         // nada nuevo: no se toca la pantalla
+    ultimaTienda = huellaTienda;
+    aviso("#avisoTienda", "", "");
+    clavesTienda = r.claves;
+    estadoCobro = r.cobro || null;
+    envios = r.envios || [];
+    cupones = r.cupones || [];
+    pintarTienda();
+    pintarEnvios();
+    pintarCupones();
+    pintarCobro(estadoCobro);
+    pintarColaborador(r.colaborador);
+    if (r.colaborador) cargarVersion();
+  } catch (e) { if (e.message !== "sesion") aviso("#avisoTienda", "mal", "No se pudo hablar con tu tienda."); }
+}
+
+/* ── 0.13.0 · 2.2 · El colaborador ─────────────────────────────────────────
+   La sección aparece solo si el maestro la manda, y la manda solo al dueño.
+   Aquí no se decide ningún permiso: el maestro ya filtró lo que el colaborador
+   ve y rechaza lo que no puede guardar. */
+let opColaborador = null;
+function pintarColaborador(c){
+  const sec = $("#seccionColaborador");
+  sec.hidden = !c;
+  if (!c) return;
+  $("#estadoColaborador").textContent = c.activo
+    ? "Hoy entra «" + c.usuario + "». Darle una clave nueva cierra sus sesiones; quitarle el acceso, también."
+    : "Hoy solo entras tú.";
+  if (c.activo && !$("#c-usuario").value) $("#c-usuario").value = c.usuario;
+  $("#quitarColaborador").hidden = !c.activo;
+  $("#darColaborador").textContent = c.activo ? "Darle una clave nueva" : "Darle una clave";
+}
+
+async function cambiarColaborador(accion){
+  const u = $("#c-usuario").value.trim(), c = $("#c-clave").value;
+  if (accion === "crear" && !u) { aviso("#avisoColaborador", "mal", "Escribe el usuario con el que va a entrar."); return; }
+  if (!c) { aviso("#avisoColaborador", "mal", "Escribe tu clave del panel."); $("#c-clave").focus(); return; }
+  const botones = [$("#darColaborador"), $("#quitarColaborador")];
+  botones.forEach(b => { b.disabled = true; });
+  if (!opColaborador) opColaborador = nuevaOperacion();
+  $("#claveColaborador").hidden = true;
+  aviso("#avisoColaborador", "info", accion === "crear" ? "Creando la clave…" : "Quitando el acceso…");
+  try {
+    const r = await llamar("colaborador", { op: opColaborador, accion: accion, usuario: u, c: c });
+    opColaborador = null;
+    $("#c-clave").value = "";
+    if (!r.ok) { aviso("#avisoColaborador", "mal", r.error || "No se pudo."); return; }
+    if (accion === "crear" && r.clave) {
+      $("#claveColaboradorTexto").textContent = r.clave;
+      $("#claveColaborador").hidden = false;
+      aviso("#avisoColaborador", "bien", "Listo: «" + r.usuario + "» ya puede entrar en esta misma dirección.");
+    } else if (accion === "crear") {
+      aviso("#avisoColaborador", "info", "Esa clave ya se creó. Si no la alcanzaste a ver, pulsa otra vez para darle una nueva.");
+    } else {
+      $("#c-usuario").value = "";
+      aviso("#avisoColaborador", "bien", "Listo: el colaborador ya no puede entrar.");
+    }
+    pintarColaborador({ usuario: r.usuario || "", activo: !!r.activo });
+  } catch (e) {
+    if (e.message !== "sesion") aviso("#avisoColaborador", "mal", "Se perdió la conexión. Pulsa otra vez; no se va a repetir.");
+  } finally { botones.forEach(b => { b.disabled = false; }); }
+}
+$("#darColaborador").addEventListener("click", () => cambiarColaborador("crear"));
+
+/* ── 0.14.0 · La versión de la tienda ─────────────────────────────────────── */
+let opActualizar = null;
+async function cargarVersion(){
+  const sec = $("#seccionVersion");
+  sec.hidden = false;
+  try {
+    const r = await llamar("actualizacion");
+    if (!r.ok) { sec.hidden = true; return; }
+    const c = r.corrida || {};
+    const corriendo = c.estado && c.estado !== "completed";
+    let t = "Tu tienda está en la versión " + r.version + ". ";
+    if (r.esSemilla) t += "Esta es la semilla: es la última.";
+    else if (corriendo) t += "Se está actualizando ahora mismo.";
+    else if (r.hayNueva === true) t += "Hay una versión nueva: la " + r.ultima + ".";
+    else if (r.hayNueva === false) t += "Es la última.";
+    else t += "No pude saber si hay una más nueva" + (r.porQue ? " (" + r.porQue + ")" : "") + ".";
+    if (c.estado === "completed" && c.resultado && c.resultado !== "success") t += " La última actualización no terminó bien; la tienda quedó como estaba.";
+    $("#estadoVersion").textContent = t;
+    const b = $("#actualizarTienda");
+    b.hidden = !r.puede || r.esSemilla || corriendo || r.hayNueva === false;
+    b.textContent = r.hayNueva ? "Actualizar a la " + r.ultima : "Buscar y actualizar";
+  } catch (e) { if (e.message !== "sesion") $("#estadoVersion").textContent = "No pude revisar la versión."; }
+}
+async function actualizarTienda(){
+  const b = $("#actualizarTienda");
+  b.disabled = true;
+  if (!opActualizar) opActualizar = nuevaOperacion();
+  try {
+    const r = await llamar("actualizar", { op: opActualizar });
+    opActualizar = null;
+    if (!r.ok) { aviso("#avisoVersion", "mal", r.error || "No se pudo."); return; }
+    b.hidden = true;
+    aviso("#avisoVersion", "bien", "Listo: tu tienda se está actualizando. Tarda entre 10 y 20 minutos; puedes seguir trabajando.");
+  } catch (e) {
+    if (e.message !== "sesion") aviso("#avisoVersion", "mal", "Se perdió la conexión. Pulsa otra vez; no se va a repetir.");
+  } finally { b.disabled = false; }
+}
+$("#actualizarTienda").addEventListener("click", actualizarTienda);
+$("#quitarColaborador").addEventListener("click", () => cambiarColaborador("quitar"));
+
+function campoDe(c){
+  const id = "t-" + c.clave, v = c.valor, mal = c.problema ? " mal" : "";
+  if (c.tipo === "largo") return `<textarea class="campo${mal}" id="${id}" data-clave="${escapar(c.clave)}">${escapar(v)}</textarea>`;
+  /* Una lista con opciones que traen su propio valor (fotos_cdn): se elige
+     por nombre y se guarda la plantilla. Lo que ya había y no es de la lista
+     queda como «Personalizada», elegida, y no se toca si nadie cambia. */
+  if (c.tipo === "lista") {
+    const ops = c.opciones || [];
+    const esDeLista = ops.some(o => o.valor === v);
+    return `<select class="campo${mal}" id="${id}" data-clave="${escapar(c.clave)}">` +
+      (!esDeLista ? `<option value="${escapar(v)}" selected>Personalizada: ${escapar(v)}</option>` : "") +
+      ops.map(o => `<option value="${escapar(o.valor)}"${o.valor === v ? " selected" : ""}${o.desactivada ? " disabled" : ""}>${escapar(o.rotulo)}</option>`).join("") +
+      `</select>`;
+  }
+  if (c.tipo === "sino" || c.tipo === "opcion") {
+    const opciones = c.tipo === "sino" ? ["Sí", "No"] : (c.opciones || []);
+    const llana = t => String(t).trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    const actual = opciones.find(o => llana(o) === llana(v));
+    return `<select class="campo${mal}" id="${id}" data-clave="${escapar(c.clave)}">` +
+      (!actual ? `<option value="${escapar(v)}" selected>${escapar(v || "(vacío)")}${c.problema ? " — no se entiende" : ""}</option>` : "") +
+      opciones.map(o => `<option value="${escapar(o)}" ${o === actual ? "selected" : ""}>${escapar(o)}</option>`).join("") + `</select>`;
+  }
+  const muestra = c.tipo === "color" && /^#[0-9a-f]{6}$/i.test(v) ? `<span class="muestra" style="background:${escapar(v)}"></span>` : "";
+  const modo = (c.tipo === "cifra" || c.tipo === "hora") ? ' inputmode="numeric"' : c.tipo === "celular" ? ' inputmode="tel"' :
+               c.tipo === "correo" ? ' inputmode="email"' : c.tipo === "url" ? ' inputmode="url"' : "";
+  return `<input class="campo${mal}" id="${id}" data-clave="${escapar(c.clave)}" value="${escapar(v)}"${modo} spellcheck="false">${muestra}`;
+}
+
+/* Lo que la sección El cobro dice arriba: cómo se está cobrando DE VERDAD. */
+let estadoCobro = null;
+function textoDelCobro(c){
+  if (!c) return "";
+  if (c.modo === "pasarela") return "Hoy tu tienda cobra con la pasarela de Bold" +
+    (c.ambiente === "produccion" ? ", con dinero real." : ", en modo de pruebas: no se mueve dinero.");
+  return "Hoy tu tienda cierra la venta por WhatsApp." + (c.pedido === "pasarela" && c.problema ? " " + c.problema : "");
+}
+
+const AVISO_GRUPO = {
+  "Avanzado": "Esto lo dejó listo quien montó tu tienda. Cambiarlo puede dejarla sin fotos o sin publicar: tócalo solo si sabes para qué.",
+  "El cobro": ""
+};
+
+function pintarTienda(){
+  /* Releer no cierra lo que estaba abierto: se vuelve a leer en cada visita, y
+     cerrarle la sección a quien está escribiendo es perderle el sitio. */
+  const abiertas = [...document.querySelectorAll("#camposTienda details[open]")].map(d => d.dataset.grupo);
+  const grupos = [];
+  clavesTienda.forEach(c => { if (grupos.indexOf(c.grupo) === -1) grupos.push(c.grupo); });
+  /* Plegadas, para que la pantalla se lea de un vistazo. Se abre sola la que
+     tiene algo que la hoja no entiende: eso hay que verlo sin buscarlo. */
+  $("#camposTienda").innerHTML = grupos.map((g, i) => {
+    const suyas = clavesTienda.filter(c => c.grupo === g);
+    const abrir = suyas.some(c => c.problema) || abiertas.indexOf(g) !== -1;
+    const cabeza = g === "El cobro" && estadoCobro
+      ? `<p class="aviso ${estadoCobro.pedido === "pasarela" && estadoCobro.modo !== "pasarela" ? "mal" : "info"}" id="estadoCobro">${escapar(textoDelCobro(estadoCobro))}</p>` : "";
+    return `<details class="seccion" data-grupo="${escapar(g)}"${abrir ? " open" : ""}><summary>${escapar(g)}</summary>` + cabeza +
+      (AVISO_GRUPO[g] ? `<p class="aviso info">${escapar(AVISO_GRUPO[g])}</p>` : "") +
+      suyas.map(c => `
+      <label for="t-${escapar(c.clave)}">${escapar(c.rotulo)}${c.sensible ? ' <span class="sensible">· pide tu clave</span>' : ""}</label>
+      ${campoDe(c)}
+      ${c.problema ? `<p class="error-campo">En la hoja dice «${escapar(c.valor)}»: ${escapar(c.problema)}</p>` : ""}
+      <p class="error-campo" id="err-${escapar(c.clave)}" hidden></p>
+      ${c.ayuda ? `<p class="ayuda">${escapar(c.ayuda)}</p>` : ""}`).join("") + `</details>`;
+  }).join("");
+  $("#claveConfirmar").hidden = true;
+  $("#t-clave").value = "";
+}
+
+/* ¿Hay un cambio sensible sin guardar? Entonces se pide la clave ya, antes de
+   pulsar Guardar, y no después de un rechazo. */
+function cambiosDeTienda(){
+  const cambios = {}, versiones = {};
+  let sensible = false;
+  clavesTienda.forEach(c => {
+    const el = document.getElementById("t-" + c.clave);
+    if (!el) return;
+    const v = el.value.trim();
+    if (v !== String(c.valor).trim()) { cambios[c.clave] = v; versiones[c.clave] = c.version; if (c.sensible) sensible = true; }
+  });
+  return { cambios, versiones, sensible };
+}
+function revisarClave(){ $("#claveConfirmar").hidden = !cambiosDeTienda().sensible; }
+
+let opTienda = null;
+async function guardarTienda(ev){
+  ev.preventDefault();
+  const { cambios, versiones, sensible } = cambiosDeTienda();
+  document.querySelectorAll("#camposTienda .error-campo[id^='err-']").forEach(e => { e.hidden = true; });
+  if (!Object.keys(cambios).length) { aviso("#avisoTienda", "info", "No cambiaste nada."); return; }
+  const datos = { cambios: cambios, versiones: versiones };
+  if (sensible) {
+    $("#claveConfirmar").hidden = false;
+    const c = $("#t-clave").value;
+    if (!c) { aviso("#avisoTienda", "mal", "Escribe tu clave del panel para guardar este cambio."); $("#t-clave").focus(); return; }
+    datos.c = c;
+  }
+  if (!opTienda) opTienda = nuevaOperacion();
+  datos.op = opTienda;
+  $("#guardarTienda").disabled = true;
+  try {
+    const r = await llamar("guardar_configuracion", datos);
+    $("#t-clave").value = "";          // la clave no se queda en la página
+    if (!r.ok) {
+      /* Nada se escribió: la misma operación puede volver a intentarse. */
+      if (r.necesitaClave) { $("#claveConfirmar").hidden = false; $("#t-clave").focus(); }
+      Object.keys(r.errores || {}).forEach(k => { const e = document.getElementById("err-" + k);
+        if (e) { e.hidden = false; e.textContent = r.errores[k];
+                 const d = e.closest("details"); if (d) d.open = true; } });
+      aviso("#avisoTienda", "mal", r.error || "No se guardó.");
+      return;
+    }
+    opTienda = null;
+    aviso("#avisoTienda", "bien", "Guardado. Se verá en la tienda al publicar.");
+    revisarPublicacion();
+    const aviso1 = $("#avisoTienda").textContent;
+    await cargarTienda();
+    aviso("#avisoTienda", "bien", aviso1);
+  } catch (e) {
+    $("#t-clave").value = "";
+    if (e.message !== "sesion") aviso("#avisoTienda", "mal", "No sabemos si se guardó: se perdió la conexión. Pulsa Guardar otra vez; no se va a repetir.");
+  } finally { $("#guardarTienda").disabled = false; }
+}
+
+/* ── Envíos y cupones (0.9.0) ───────────────────────────────────────────────
+   Una fila a la vez, cada una con su Guardar: como un producto, con la huella
+   de lo que se leyó y un número de operación que nace con el primer intento y
+   se conserva si la respuesta se pierde. */
+let envios = [], cupones = [];
+const opsFila = {};
+const TIPOS_CUPON = [["porcentaje", "Porcentaje"], ["fijo", "Valor fijo"], ["envio", "Envío gratis"]];
+
+function filaEnvio(e){
+  const nuevo = !e.id;
+  const resumen = nuevo ? "Zona nueva" : `${e.nombre || e.id} · ${pesos(e.valor)}${e.problema ? " · revisar" : ""}`;
+  return `<details class="fila-ajuste" data-tipo="envio" data-original="${escapar(e.id || "")}" data-version="${escapar(e.version || "")}"${nuevo || e.problema ? " open" : ""}>
+    <summary>${escapar(resumen)}</summary>
+    <div class="rejilla-ajuste">
+      <div><label>Código</label><input class="campo" aria-label="Código" data-campo="id" value="${escapar(e.id || "")}"${nuevo ? "" : " readonly"} spellcheck="false" placeholder="zona-norte">
+        <p class="error-campo" data-err="id" hidden></p></div>
+      <div><label>Nombre</label><input class="campo" aria-label="Nombre" data-campo="nombre" value="${escapar(e.nombre || "")}">
+        <p class="error-campo" data-err="nombre" hidden></p></div>
+      <div><label>Valor</label><input class="campo" aria-label="Valor" data-campo="valor" value="${escapar(e.valor || "")}" inputmode="numeric" placeholder="0">
+        <p class="error-campo" data-err="valor" hidden></p></div>
+    </div>
+    ${e.problema ? `<p class="error-campo">${escapar(e.problema)}</p>` : ""}
+    <div class="pie-fila"><button class="btn chico" type="button" data-accion="guardar">Guardar</button>
+      ${nuevo ? `<button class="btn linea chico" type="button" data-accion="quitar">Cancelar</button>` :
+        `<button class="btn peligro chico" type="button" data-accion="borrar">Borrar</button>`}
+      <span class="estado-fila" role="status"></span></div>
+  </details>`;
+}
+
+function filaCupon(c){
+  const nuevo = !c.codigo;
+  const tipo = c.tipo || "porcentaje";
+  const cuanto = tipo === "envio" ? "envío gratis" : tipo === "porcentaje" ? (c.valor || "?") + "%" : pesos(c.valor);
+  const resumen = nuevo ? "Cupón nuevo" : `${c.codigo} · ${cuanto} · ${c.activo === "No" ? "inactivo" : "activo"}${c.vence ? " · vence " + c.vence : ""}`;
+  return `<details class="fila-ajuste" data-tipo="cupon" data-original="${escapar(c.codigo || "")}" data-version="${escapar(c.version || "")}"${nuevo ? " open" : ""}>
+    <summary>${escapar(resumen)}</summary>
+    <div class="rejilla-ajuste">
+      <div><label>Código</label><input class="campo" aria-label="Código" data-campo="codigo" value="${escapar(c.codigo || "")}"${nuevo ? "" : " readonly"} spellcheck="false" placeholder="BIENVENIDA10">
+        <p class="error-campo" data-err="codigo" hidden></p></div>
+      <div><label>Tipo</label><select class="campo" aria-label="Tipo" data-campo="tipo">${TIPOS_CUPON.map(([v, t]) =>
+        `<option value="${v}"${v === tipo ? " selected" : ""}>${t}</option>`).join("")}</select>
+        <p class="error-campo" data-err="tipo" hidden></p></div>
+      <div><label>Valor</label><input class="campo" aria-label="Valor" data-campo="valor" value="${escapar(c.valor || "")}" inputmode="numeric">
+        <p class="error-campo" data-err="valor" hidden></p></div>
+      <div><label>Compra mínima</label><input class="campo" aria-label="Compra mínima" data-campo="minimo" value="${escapar(c.minimo || "")}" inputmode="numeric" placeholder="0">
+        <p class="error-campo" data-err="minimo" hidden></p></div>
+      <div><label>Vence</label><input class="campo" aria-label="Vence" data-campo="vence" type="date" value="${escapar(c.vence || "")}">
+        <p class="error-campo" data-err="vence" hidden></p></div>
+      <div><label>Usos máximos (0 = sin tope)</label><input class="campo" aria-label="Usos máximos (0 = sin tope)" data-campo="usosMaximos" value="${escapar(c.usosMaximos || "")}" inputmode="numeric" placeholder="0">
+        <p class="error-campo" data-err="usosMaximos" hidden></p></div>
+      <div><label>Activo</label><select class="campo" aria-label="Activo" data-campo="activo">${["Sí", "No"].map(v =>
+        `<option${v === (c.activo || "Sí") ? " selected" : ""}>${v}</option>`).join("")}</select></div>
+      <div><label>Notas</label><input class="campo" aria-label="Notas" data-campo="notas" value="${escapar(c.notas || "")}"></div>
+    </div>
+    ${nuevo ? "" : `<p class="dato">Usado en ${Number(c.usados) || 0} venta(s).</p>`}
+    <div class="pie-fila"><button class="btn chico" type="button" data-accion="guardar">Guardar</button>
+      ${nuevo ? `<button class="btn linea chico" type="button" data-accion="quitar">Cancelar</button>` :
+        `<button class="btn peligro chico" type="button" data-accion="borrar">Borrar</button>`}
+      <span class="estado-fila" role="status"></span></div>
+  </details>`;
+}
+
+function pintarEnvios(){ $("#listaEnvios").innerHTML = envios.map(filaEnvio).join("") || `<p class="dato">Todavía no hay zonas.</p>`; }
+function pintarCupones(){ $("#listaCupones").innerHTML = cupones.map(filaCupon).join("") || `<p class="dato">Todavía no hay cupones.</p>`; }
+
+async function alPulsarAjuste(ev){
+  const b = ev.target.closest("button[data-accion]");
+  if (!b) return;
+  const fila = b.closest(".fila-ajuste");
+  const tipo = fila.dataset.tipo, original = fila.dataset.original;
+  const estado = fila.querySelector(".estado-fila");
+  if (b.dataset.accion === "quitar") { fila.remove(); return; }
+  /* Borrar pide un segundo toque, como en productos: en un celular se pulsa sin leer. */
+  if (b.dataset.accion === "borrar" && !b.dataset.seguro) {
+    b.dataset.seguro = "1"; b.textContent = "¿Seguro? Borrar"; b.classList.add("firme"); return;
+  }
+  const datos = { original: original, version: fila.dataset.version };
+  if (b.dataset.accion === "borrar") datos.borrar = true;
+  else {
+    const d = {};
+    fila.querySelectorAll("[data-campo]").forEach(el => { d[el.dataset.campo] = el.value.trim(); });
+    datos[tipo] = d;
+  }
+  const llaveOp = tipo + ":" + (original || "nuevo") + ":" + (datos.borrar ? "b" : "g");
+  if (!opsFila[llaveOp]) opsFila[llaveOp] = nuevaOperacion();
+  datos.op = opsFila[llaveOp];
+  fila.querySelectorAll("[data-err]").forEach(e => { e.hidden = true; });
+  b.disabled = true; estado.textContent = "Guardando…";
+  try {
+    const r = await llamar(tipo === "envio" ? "guardar_envio" : "guardar_cupon", datos);
+    delete opsFila[llaveOp];
+    if (!r.ok) {
+      Object.keys(r.errores || {}).forEach(k => { const e = fila.querySelector(`[data-err="${k}"]`);
+        if (e) { e.hidden = false; e.textContent = r.errores[k]; } });
+      estado.textContent = r.error || "No se guardó.";
+      return;
+    }
+    const texto = tipo === "envio"
+      ? (datos.borrar ? "Zona borrada." : "Zona guardada.") + " Se verá en la tienda al publicar."
+      : (datos.borrar ? "Cupón borrado." : "Cupón guardado.") + " Ya funciona en la tienda.";
+    await cargarTienda();
+    const sec = tipo === "envio" ? "#seccionEnvios" : "#seccionCupones";
+    $(sec).open = true;
+    aviso(tipo === "envio" ? "#avisoEnvios" : "#avisoCupones", "bien", texto);
+    if (tipo === "envio") revisarPublicacion();
+  } catch (e) {
+    if (e.message !== "sesion") estado.textContent = "No sabemos si se guardó: se perdió la conexión. Pulsa otra vez; no se va a repetir.";
+  } finally { b.disabled = false; }
+}
+
+/* ── El tablero (M4) ────────────────────────────────────────────────────────
+   Las gráficas son SVG escrito aquí, sin librerías: una dependencia pesaría
+   más que todo esto junto, pediría otra entrada en la política de seguridad y
+   tardaría en un celular. Todo texto que viene de la hoja —nombres de
+   producto, ciudades— entra por escapar(), también dentro del SVG.
+
+   Las cuentas NO se hacen aquí. Llegan hechas de calcularMetricas(), la misma
+   función que escribe la pestaña Tablero de la hoja y el correo del día; la
+   página solo dibuja. Los porcentajes de variación también llegan hechos. */
+let datosTablero = null;
+
+async function cargarTablero(){
+  $("#actualizarTablero").disabled = true;
+  aviso("#avisoTablero", "", "");
+  if (!datosTablero) $("#tableroCifras").innerHTML = '<p class="dato"><span class="girando" style="display:inline-block"></span> Leyendo tus números del mes…</p>';
+  else $("#consultadoTablero").textContent = "Actualizando tus números…";
+  try {
+    const r = await llamar("tablero");
+    if (!r.ok) { aviso("#avisoTablero", "mal", r.error || "No se pudo leer el tablero."); return; }
+    datosTablero = r;
+    aviso("#avisoTablero", "", "");
+    pintarTablero();
+  } catch (e) {
+    if (e.message !== "sesion") aviso("#avisoTablero", "mal", "No se pudo hablar con tu tienda. Revisa la conexión y pulsa Actualizar.");
+  } finally {
+    $("#actualizarTablero").disabled = false;
+  }
+}
+
+const porciento = x => Math.round((Number(x) || 0) * 100) + "%";
+/* Pesos cortos para dentro de la gráfica, donde no cabe «$1.250.000». */
+function pesosCortos(n){
+  n = Math.round(Number(n) || 0);
+  if (n >= 1e6) return "$" + (n / 1e6).toLocaleString("es-CO", { maximumFractionDigits: 1 }) + " M";
+  if (n >= 1e3) return "$" + Math.round(n / 1e3).toLocaleString("es-CO") + " mil";
+  return "$" + n;
+}
+
+/* Barras verticales: una por mes. */
+function svgColumnas(filas, resumen){
+  /* Letra grande DENTRO del dibujo: el SVG se encoge a la mitad en un celular,
+     y 13 unidades aquí eran 7 píxeles allá. */
+  const W = 600, H = 230, arriba = 34, abajo = 38, alto = H - arriba - abajo;
+  const tope = Math.max(1, ...filas.map(f => f.valor));
+  const paso = W / filas.length, ancho = Math.min(64, paso * 0.62);
+  const barras = filas.map((f, i) => {
+    const h = f.valor > 0 ? Math.max(2, Math.round(f.valor / tope * alto)) : 0;
+    const x = Math.round(i * paso + (paso - ancho) / 2), y = arriba + alto - h, cx = Math.round(i * paso + paso / 2);
+    return `<rect x="${x}" y="${y}" width="${Math.round(ancho)}" height="${h}" rx="3" fill="${f.resaltar ? "#111" : "#9DB8A6"}"></rect>` +
+      `<text x="${cx}" y="${y - 8}" text-anchor="middle" font-size="22" fill="#111">${escapar(f.corto)}</text>` +
+      `<text x="${cx}" y="${H - 8}" text-anchor="middle" font-size="22" fill="#6E6E6E"${f.resaltar ? ' font-weight="700"' : ""}>${escapar(f.rotulo)}</text>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapar(resumen)}">` +
+    `<line x1="0" y1="${arriba + alto}" x2="${W}" y2="${arriba + alto}" stroke="#E4E4E4"></line>${barras}</svg>`;
+}
+
+/* Barras horizontales: el rótulo encima, la barra debajo y la cifra al final. */
+function svgBarras(filas, resumen){
+  const W = 600, fila = 64;
+  /* Sitio a la derecha para la cifra más larga: si no, «3 · 100% de los
+     carritos» se sale del dibujo. Y el rótulo, cortado: la tabla lo trae entero. */
+  const reserva = Math.min(330, 16 + 11 * Math.max(...filas.map(f => String(f.corto).length)));
+  const corto = t => { t = String(t); return t.length > 44 ? t.slice(0, 43) + "…" : t; };
+  const tope = Math.max(1, ...filas.map(f => f.valor));
+  const cuerpo = filas.map((f, i) => {
+    const y = i * fila, largo = f.valor > 0 ? Math.max(3, Math.round(f.valor / tope * (W - reserva))) : 0;
+    return `<text x="0" y="${y + 24}" font-size="23" fill="#111">${escapar(corto(f.rotulo))}</text>` +
+      `<rect x="0" y="${y + 34}" width="${largo}" height="18" rx="4" fill="${f.color || "#9DB8A6"}"></rect>` +
+      `<text x="${largo + 10}" y="${y + 51}" font-size="20" fill="#6E6E6E">${escapar(f.corto)}</text>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${W} ${filas.length * fila}" role="img" aria-label="${escapar(resumen)}">${cuerpo}</svg>`;
+}
+
+function tabla(columnas, filas){
+  return `<table class="lineas"><thead><tr>${columnas.map((c, i) => `<th${i ? ' class="n"' : ""}>${escapar(c)}</th>`).join("")}</tr></thead>` +
+    `<tbody>${filas.map(f => `<tr>${f.map((v, i) => `<td${i ? ' class="n"' : ""}>${escapar(v)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+}
+
+function cifra(rotulo, valor, antes, variacion){
+  const clase = /▲/.test(variacion || "") ? "sube" : /▼/.test(variacion || "") ? "baja" : "";
+  return `<div class="cifra"><div class="rotulo">${escapar(rotulo)}</div><div class="valor">${escapar(valor)}</div>` +
+    `<div class="antes">${escapar(antes)}${variacion ? ` · <span class="${clase}">${escapar(variacion)}</span>` : ""}</div></div>`;
+}
+
+function listaConResto(nombres, total){
+  if (!total) return "";
+  const resto = total - nombres.length;
+  return `<ul class="lista-corta">${nombres.map(n => `<li>${escapar(n)}</li>`).join("")}` +
+    `${resto > 0 ? `<li>y ${resto} más</li>` : ""}</ul>`;
+}
+
+function pintarTablero(){
+  const d = datosTablero; if (!d) return;
+  const A = d.esteMes, H = d.aEstaAltura;
+  $("#consultadoTablero").textContent = "Tus números, leídos " + hace(d.consultado) +
+    ". No se actualizan solos: pulsa Actualizar para verlos de nuevo.";
+  const tramo = "El mes pasado a día " + d.dia + ": ";
+  const partes = [];
+
+  partes.push(`<div class="cifras">` +
+    cifra("Ventas de este mes", pesos(A.ventas), tramo + pesos(H.ventas), d.variacion.ventas) +
+    cifra("Pedidos vendidos", String(A.pedidos), tramo + H.pedidos, d.variacion.pedidos) +
+    cifra("Ticket promedio", pesos(A.ticket), tramo + pesos(H.ticket), d.variacion.ticket) +
+    cifra("Pedidos que se cerraron", A.hechos ? porciento(A.tasaCierre) : "—",
+          A.hechos ? A.pedidos + " de " + A.hechos + " pedidos hechos" : "Todavía no hay pedidos este mes", "") +
+    `</div>`);
+
+  // Ventas mes a mes
+  const conVentas = d.meses.some(m => m.ventas > 0);
+  partes.push(`<section class="grafica tarjeta" id="grafica-meses"><h3>Ventas mes a mes</h3>` +
+    `<p class="ayuda">Solo lo vendido: pedidos en Pagado, Despachado o Entregado. El mes en curso va en negro.</p>` +
+    (conVentas
+      ? svgColumnas(d.meses.map(m => ({ rotulo: m.etiqueta, valor: m.ventas, corto: m.ventas ? pesosCortos(m.ventas) : "", resaltar: m.actual })),
+                    "Ventas de los últimos seis meses: " + d.meses.map(m => m.etiqueta + " " + pesos(m.ventas)).join(", "))
+      : `<p class="dato">Todavía no hay ventas confirmadas.</p>`) +
+    tabla(["Mes", "Ventas", "Pedidos"], d.meses.map(m => [m.etiqueta, pesos(m.ventas), String(m.pedidos)])) +
+    `</section>`);
+
+  // Embudo
+  const pasos = [
+    { rotulo: "Armaron un carrito", valor: A.carritos, nota: "" },
+    { rotulo: "Hicieron el pedido", valor: A.hechos, nota: A.carritos ? porciento(A.tasaPedido) + " de los carritos" : "" },
+    { rotulo: "Se vendió", valor: A.pedidos, nota: A.hechos ? porciento(A.tasaCierre) + " de los pedidos" : "" }
+  ];
+  partes.push(`<section class="grafica tarjeta" id="grafica-embudo"><h3>De carrito a venta, este mes</h3>` +
+    `<p class="ayuda">Si cae el primer paso, revisa precios o envío. Si cae el segundo, la conversación.</p>` +
+    (A.carritos || A.hechos
+      ? svgBarras(pasos.map(x => ({ rotulo: x.rotulo, valor: x.valor, corto: String(x.valor) + (x.nota ? " · " + x.nota : ""), color: "#7FA38C" })),
+                  "Embudo de este mes: " + pasos.map(x => x.rotulo + " " + x.valor).join(", "))
+      : `<p class="dato">Todavía no hay carritos este mes.</p>`) +
+    tabla(["Paso", "Cuántos", "De cada paso al siguiente"], pasos.map(x => [x.rotulo, String(x.valor), x.nota])) +
+    `</section>`);
+
+  // Para atender hoy
+  partes.push(`<section class="grafica tarjeta" id="bloque-atender"><h3>Para atender hoy</h3>` +
+    `<p class="dato">Pedidos por confirmar: <b>${d.porConfirmar}</b>` +
+    (d.atrasados ? ` · <span class="alerta">${d.atrasados} de más de 24 horas: escríbeles hoy</span>` : "") + `</p>` +
+    (d.errores ? `<p class="dato"><span class="alerta">Errores registrados: ${d.errores}</span> · míralos en la pestaña Errores de la hoja</p>` : "") +
+    `</section>`);
+
+  // 4.1 · «Avísame cuando llegue»: quién espera qué (sin nadie dentro: cuántos)
+  const esperan = d.avisame || [];
+  if (esperan.length) partes.push(`<section class="grafica tarjeta" id="bloque-avisame"><h3>Te están esperando</h3>` +
+    `<p class="ayuda">Pidieron «avísame cuando llegue» por WhatsApp. Búscalos en tu WhatsApp con la palabra «avísame».</p>` +
+    esperan.map(a => `<div class="fila-avisame" data-id="${escapar(a.id)}"><p class="dato"><b>${escapar(a.nombre)}</b> · ` +
+      `${a.personas} ${a.personas === 1 ? "persona espera" : "personas esperan"} · ` +
+      `${a.hayStock ? `<span class="alerta">¡ya hay existencias! Escríbeles</span>` : "sigue agotado"}</p>` +
+      `${a.hayStock ? `<button class="btn linea chico" type="button" data-avisado="${escapar(a.id)}">Ya les avisé</button>` : ""}</div>`).join("") +
+    `</section>`);
+
+  // Lo que más se vende
+  partes.push(`<section class="grafica tarjeta" id="grafica-vendidos"><h3>Lo que más se vende</h3>` +
+    `<p class="ayuda">Unidades vendidas en los últimos 30 días.</p>` +
+    (d.masVendidos.length
+      ? svgBarras(d.masVendidos.map(x => ({ rotulo: x.nombre, valor: x.unidades, corto: x.unidades + " · " + pesosCortos(x.ingresos), color: "#111" })),
+                  "Lo más vendido en 30 días: " + d.masVendidos.map(x => x.nombre + " " + x.unidades).join(", ")) +
+        tabla(["Producto", "Unidades", "Ingresos"], d.masVendidos.map(x => [x.nombre, String(x.unidades), pesos(x.ingresos)]))
+      : `<p class="dato">Todavía no hay ventas en los últimos 30 días.</p>`) +
+    `</section>`);
+
+  // Dónde compran
+  partes.push(`<section class="grafica tarjeta" id="grafica-ciudades"><h3>Dónde compran</h3>` +
+    `<p class="ayuda">Pedidos vendidos por ciudad, últimos 30 días.</p>` +
+    (d.porCiudad.length
+      ? svgBarras(d.porCiudad.map(x => ({ rotulo: x.ciudad, valor: x.pedidos, corto: String(x.pedidos) })),
+                  "Pedidos por ciudad: " + d.porCiudad.map(x => x.ciudad + " " + x.pedidos).join(", ")) +
+        tabla(["Ciudad", "Pedidos"], d.porCiudad.map(x => [x.ciudad, String(x.pedidos)]))
+      : `<p class="dato">Todavía no hay ventas en los últimos 30 días.</p>`) +
+    `</section>`);
+
+  // Inventario
+  partes.push(`<section class="grafica tarjeta" id="bloque-inventario"><h3>Inventario</h3>` +
+    `<p class="dato">Agotados: <b${d.cuantosAgotados ? ' class="alerta"' : ""}>${d.cuantosAgotados}</b></p>${listaConResto(d.agotados, d.cuantosAgotados)}` +
+    `<p class="dato">Con 5 unidades o menos: <b>${d.cuantosPocos}</b></p>${listaConResto(d.pocos, d.cuantosPocos)}` +
+    `<p class="dato">Sin vender en 30 días: <b>${d.cuantosSinVender}</b></p>${listaConResto(d.sinVender, d.cuantosSinVender)}` +
+    `</section>`);
+
+  partes.push(`<p class="ayuda" style="margin:10px 0 40px">Son los mismos números de la pestaña Tablero de tu hoja.</p>`);
+  /* Arriba lo que se mira de un vistazo —las cuatro cifras y lo que hay que
+     atender hoy—; debajo de los pedidos, las gráficas. */
+  const arriba = partes.filter(x => /class="cifras"|id="bloque-atender"|id="bloque-avisame"/.test(x));
+  $("#tableroCifras").innerHTML = arriba.join("");
+  $("#tableroGraficas").innerHTML = `<h2 class="titulo-bloque">Cómo va el mes</h2>` +
+    partes.filter(x => arriba.indexOf(x) === -1).join("");
+  pintarCobro(d.cobro);
+}
+
+/* 4.1 · el comerciante ya escribió: se borra la cuenta de ese producto. */
+let opAvisado = {};
+async function marcarAvisado(id, b){
+  if (!opAvisado[id]) opAvisado[id] = nuevaOperacion();
+  b.disabled = true;
+  try {
+    const r = await llamar("avisame_hecho", { op: opAvisado[id], id: id });
+    delete opAvisado[id];
+    if (!r.ok) { aviso("#avisoTablero", "mal", r.error || "No se pudo marcar."); return; }
+    datosTablero.avisame = (datosTablero.avisame || []).filter(a => a.id !== id);
+    pintarTablero();
+    aviso("#avisoTablero", "bien", "Listo: marcado como avisado.");
+  } catch (e) { if (e.message !== "sesion") aviso("#avisoTablero", "mal", "Se perdió la conexión. Pulsa otra vez."); }
+  finally { b.disabled = false; }
+}
+
+/* LA HOJA PIDE PASARELA Y LA TIENDA COBRA POR WHATSAPP: se dice arriba, en
+   las dos pantallas, con el porqué. Pasó en la primera tienda y nada en la
+   página lo decía (bitácora 57). */
+function pintarCobro(c){
+  const el = $("#avisoCobro");
+  if (!c || c.pedido !== "pasarela" || c.modo === "pasarela") { el.hidden = true; el.textContent = ""; return; }
+  el.hidden = false;
+  el.textContent = "Tu tienda está cobrando por WhatsApp aunque pediste la pasarela de Bold. " +
+    (c.problema || "Revisa la sección «El cobro» en Tienda.");
+}
+
+/* ── Arranque ── */
+$("#formEntrar").addEventListener("submit", entrar);
+$("#abrirRecuperar").addEventListener("click", () => { $("#recuperar").hidden = false; aviso("#avisoRecuperar", "", ""); $("#pedirCodigo").focus(); });
+$("#pedirCodigo").addEventListener("click", pedirCodigo);
+$("#usarCodigo").addEventListener("click", usarCodigo);
+$("#salir").addEventListener("click", () => cerrarSesion(""));
+$("#lista").addEventListener("click", alPulsarLista);
+["#buscar", "#filtroCategoria", "#verApagados"].forEach(s =>
+  $(s).addEventListener(s === "#buscar" ? "input" : "change", pintarLista));
+$("#nuevo").addEventListener("click", () => abrirEditor(null));
+$("#cancelar").addEventListener("click", cerrarEditor);
+$("#formProducto").addEventListener("submit", guardar);
+$("#borrar").addEventListener("click", pedirBorrar);
+$("#borrarSi").addEventListener("click", borrar);
+$("#f-foto").addEventListener("change", subirFoto);
+$("#guardarCombinaciones").addEventListener("click", guardarCombinaciones);
+document.querySelectorAll(".pestanas button").forEach(b => b.addEventListener("click", () => mostrarVista(b.dataset.vista)));
+$("#publicar").addEventListener("click", publicar);
+$("#crearEnlace").addEventListener("click", crearEnlace);
+$("#copiarEnlace").addEventListener("click", copiarEnlace);
+$("#actualizarTablero").addEventListener("click", cargarTablero);
+$("#tableroCifras").addEventListener("click", ev => { const b = ev.target.closest("button[data-avisado]");
+  if (b) marcarAvisado(b.dataset.avisado, b); });
+$("#chipsEstados").addEventListener("click", ev => { const b = ev.target.closest("button[data-estado]");
+  if (!b) return; filtroEstado = b.dataset.estado; filtrarPedidos(); });
+let tempBuscarPedido = null;
+$("#buscarPedido").addEventListener("input", () => { clearTimeout(tempBuscarPedido); tempBuscarPedido = setTimeout(filtrarPedidos, 120); });
+$("#listaPedidos").addEventListener("click", ev => { const b = ev.target.closest("button[data-accion='ver']");
+  if (!b) return; const p = listaPedidos.find(x => x.pedido === b.closest(".fila").dataset.pedido); if (p) abrirPedido(p); });
+$("#p-estado").addEventListener("change", alCambiarEstado);
+$("#guardarPedido").addEventListener("click", () => guardarEstadoPedido(false));
+$("#guardarPedidoSi").addEventListener("click", () => guardarEstadoPedido(true));
+$("#cerrarPedido").addEventListener("click", cerrarPedido);
+$("#formTienda").addEventListener("submit", guardarTienda);
+$("#camposTienda").addEventListener("input", revisarClave);
+$("#camposTienda").addEventListener("change", revisarClave);
+$("#listaEnvios").addEventListener("click", alPulsarAjuste);
+$("#listaCupones").addEventListener("click", alPulsarAjuste);
+$("#nuevoEnvio").addEventListener("click", () => { $("#listaEnvios").insertAdjacentHTML("beforeend", filaEnvio({}));
+  const x = $("#listaEnvios .fila-ajuste:last-child [data-campo='id']"); if (x) x.focus(); });
+$("#nuevoCupon").addEventListener("click", () => { $("#listaCupones").insertAdjacentHTML("beforeend", filaCupon({}));
+  const x = $("#listaCupones .fila-ajuste:last-child [data-campo='codigo']"); if (x) x.focus(); });
+$("#deshacerTienda").addEventListener("click", () => { pintarTienda(); aviso("#avisoTienda", "", ""); });
+$("#camposTienda").addEventListener("input", ev => { const el = ev.target;
+  if (el.nextElementSibling && el.nextElementSibling.classList.contains("muestra") && /^#[0-9a-f]{6}$/i.test(el.value))
+    el.nextElementSibling.style.background = el.value; });
+$("#f-nombre").addEventListener("input", () => { if (!codigoTocado && !editando) $("#f-id").value = codigoDesde($("#f-nombre").value); });
+/* Mientras se escribe se normaliza sin recortar las puntas: si no, el espacio
+   que el comerciante acaba de teclear desaparece antes de que escriba la
+   palabra siguiente, y el campo parece roto. Las puntas se recortan al guardar. */
+$("#f-id").addEventListener("input", () => {
+  codigoTocado = true;
+  const el = $("#f-id");
+  const v = el.value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/ñ/g, "n").replace(/[^a-z0-9-]+/g, "-");
+  if (v !== el.value) el.value = v;
+});
+
+if (NEGOCIO) { $("#marca").textContent = NEGOCIO; document.title = NEGOCIO + " — panel"; }
+
+(async function(){
+  if (!SCRIPT_URL) { mostrar("sinHoja"); return; }
+  if (!testigo()) { mostrar("entrar"); $("#usuario").focus(); return; }
+  mostrar("cargando");
+  try {
+    const r = await llamar("sesion");
+    if (r.ok) await abrirPanel(r.usuario, r.rol);
+    else cerrarSesion("");
+  } catch (e) {
+    if (e.message !== "sesion") { mostrar("entrar"); aviso("#avisoEntrar", "mal", "No se pudo hablar con tu tienda."); }
+  }
+})();
+</script>
+</body>
+</html>
