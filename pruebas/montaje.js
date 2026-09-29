@@ -1041,6 +1041,21 @@ const configurar = (g, clave, valor) => {
     ok('  ...leyendo el commit de la etiqueta, no el del objeto etiqueta',
        /\^\{\}/.test(rel),
        'en una etiqueta anotada el sha del ref no es el del commit');
+    /* 0.22.3 · bitácora 106: la semilla también es una tienda, y su maestro
+       nuevo no se lo publicaba nadie. */
+    const paso = rel.slice(rel.indexOf('- name: El maestro de la semilla, al día'));
+    ok('EL RELEASE pone al día el maestro de la propia semilla: pregunta al vivo y, si quedó atrás, dispara montaje con la casilla y PUBLICAR',
+       rel.includes('- name: El maestro de la semilla, al día') &&
+       /preparar-index\.mjs --al-dia/.test(paso) && /desalineado=/.test(paso) &&
+       /gh workflow run montaje\.yml[\s\S]*-f maestro=true -f confirmar=PUBLICAR/.test(paso) &&
+       /^\s*actions: write\s*$/m.test(rel),
+       'sin esto, «Publicar ahora» en la semilla choca con la guarda de versión');
+    ok('  ...y no está atado a que haya algo que cortar: volver a correr release pone al día una semilla atrasada',
+       !/if:/.test(paso.split('run:')[0]));
+    const pix = fs.readFileSync('../montar/preparar-index.mjs', 'utf8');
+    ok('  ...y `--al-dia` solo pregunta: sale antes de escribir nada',
+       pix.indexOf("includes('--al-dia')") > 0 &&
+       pix.indexOf("includes('--al-dia')") < pix.indexOf('await escribirSiCambio(PUBLICAR,'));
   }
 
   ok('NINGUNA ACCIÓN SE QUEDÓ en una versión que pide Node 20',
@@ -4108,6 +4123,77 @@ if (!fs.existsSync('../.github/workflows/release.yml')) {
     x = correr(r.d, r.viejo);
     ok('  ...pero si nada difería ni del commit de arranque, sigue siendo un fallo que se dice',
        x.codigo === 1 && /no quedó nada que publicar/.test(x.resumen), 'código ' + x.codigo);
+  }
+}
+
+/* ═══ 27l. UN 404 LENTO ES LA REDIRECCIÓN, NO EL ACCESO (0.22.4 · bitácora 107) ═══
+   Con un servidor de verdad: `alMaestro` contra un maestro que tarda y
+   contesta 404, como hizo Google en la semilla tras un `release`. */
+{
+  const { execFileSync } = require('child_process');
+  const correr = (plan) => {
+    const codigo = `
+      import http from 'node:http';
+      const plan = ${JSON.stringify(plan)}; let n = 0;
+      const srv = http.createServer((q, r) => { const p = plan[Math.min(n++, plan.length - 1)];
+        setTimeout(() => { r.writeHead(p.s, { 'content-type': 'application/json' }); r.end(p.s === 200 ? '{"ok":true,"negocio":"x"}' : 'no'); }, p.ms); });
+      await new Promise(l => srv.listen(0, l));
+      const { alMaestro } = await import(${JSON.stringify(require('path').resolve('../montar/tienda.mjs'))});
+      let salida;
+      try { const d = await alMaestro({ url: 'http://127.0.0.1:' + srv.address().port + '/exec', token: 't' }, 'identidad');
+            salida = { ok: d.ok, pedidas: n }; }
+      catch (e) { salida = { error: e.message, pedidas: n }; }
+      srv.close(); console.log(JSON.stringify(salida));`;
+    const out = execFileSync(process.execPath, ['--input-type=module', '-e', codigo],
+      { env: Object.assign({}, process.env, { LENTO_404_MS: '150', ESPERA_404_MS: '10', SONDEO: '/tmp/no-hay-sondeo.json' }),
+        stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim().split('\n').pop();
+    return JSON.parse(out);
+  };
+  const a = correr([{ s: 404, ms: 250 }, { s: 200, ms: 0 }]);
+  ok('UN 404 QUE LLEGA TRAS ESPERAR se reintenta, y la lectura sigue: es la redirección que caduca, no el acceso',
+     a.ok === true && a.pedidas === 2, JSON.stringify(a));
+  const b = correr([{ s: 404, ms: 0 }]);
+  ok('  ...pero uno RÁPIDO no se reintenta y sigue mandando a mirar el acceso',
+     b.pedidas === 1 && /Ninguna acción ha contestado todavía/.test(b.error || ''), JSON.stringify(b).slice(0, 120));
+  const c = correr([{ s: 404, ms: 250 }]);
+  ok('  ...y si el lento se repite, el mensaje dice cuánto tardó y NO manda a revisar el acceso',
+     c.pedidas === 3 && /Tardó \d+ s/.test(c.error || '') && !/Ninguna acción/.test(c.error || ''),
+     JSON.stringify(c).slice(0, 140));
+}
+
+/* ═══ 27k. LO QUE LA SEMILLA RETIRÓ ENTRA EN EL COMMIT (0.22.3 · bitácora 106) ═══
+   La actualización borraba los `retirados` del disco, pero `montaje` solo
+   indexaba publicar/, wrangler y los propios: el borrado no llegaba nunca al
+   commit. Con git de verdad y el trozo del flujo tal cual. */
+{
+  const { execFileSync } = require('child_process');
+  const path = require('path');
+  const y = fs.readFileSync('../.github/workflows/montaje.yml', 'utf8');
+  const ini = y.indexOf('PUBLICA="publicar/ wrangler.jsonc"');
+  const fin = y.indexOf('git add -A -- $PUBLICA', ini);
+  if (ini < 0 || fin < 0) {
+    ok('EL TROZO del flujo que decide qué entra en el commit se encuentra', false);
+  } else {
+    const trozo = y.slice(ini, fin + 'git add -A -- $PUBLICA'.length)
+      .replace(/\$\{\{ steps\.semilla\.outputs\.cambio \}\}/g, 'si');
+    const d = fs.mkdtempSync('/tmp/retirados-');
+    const git = (...a) => execFileSync('git', a, { cwd: d, stdio: 'pipe' }).toString().trim();
+    git('init', '-q'); git('config', 'user.email', 'x@x'); git('config', 'user.name', 'x');
+    const escribe = (r, t) => { fs.mkdirSync(path.dirname(path.join(d, r)), { recursive: true }); fs.writeFileSync(path.join(d, r), t); };
+    escribe('publicar/index.html', 'a\n'); escribe('wrangler.jsonc', '{}\n'); escribe('x.txt', '1\n');
+    escribe('servicio/viejo.js', 'x\n');
+    escribe('semilla.json', JSON.stringify({ propios: ['x.txt', 'semilla.json'], retirados: ['servicio', 'nunca-existio'] }));
+    git('add', '-A'); git('commit', '-qm', 'antes');
+    fs.rmSync(path.join(d, 'servicio'), { recursive: true });      // lo que hace aplicar()
+    escribe('x.txt', '2\n');
+    let error = '';
+    try { execFileSync('bash', ['-c', 'set -e\n' + trozo], { cwd: d, stdio: 'pipe' }); }
+    catch (e) { error = String(e.stderr || e.message).slice(0, 160); }
+    const indice = error ? '' : git('diff', '--cached', '--name-status');
+    ok('LO QUE LA SEMILLA RETIRÓ entra en el commit: el borrado de servicio/ se indexa junto con los propios',
+       !error && /^D\s+servicio\/viejo\.js$/m.test(indice) && /^M\s+x\.txt$/m.test(indice),
+       error || indice.replace(/\n/g, ' · '));
+    ok('  ...y un retirado que esta tienda nunca tuvo no tumba el `git add`', !error, error);
   }
 }
 
