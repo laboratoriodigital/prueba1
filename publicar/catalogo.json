@@ -1,7 +1,7 @@
 {
  "esquema": 1,
  "version": "2026-09-22-8",
- "generado": "2026-09-29T04:34:09.451Z",
+ "generado": "2026-09-29T23:17:01.140Z",
  "productos": [
   {
    "id": "ejemplo1",
@@ -30,7 +30,6 @@
     {
      "nombre": "Color",
      "opciones": [
-      "Rosa",
       "verde"
      ]
     }
@@ -80,11 +79,11 @@
   "horario": "",
   "repositorio": "laboratoriodigital/prueba1",
   "f_autoria": "Sí",
-  "autoria_url": "",
+  "autoria_url": "https://laboratorio-digital.com",
   "retracto_excepciones": "",
   "f_variantes": "Sí",
   "orden_catalogo": "Destacados primero",
-  "panel_usuario": "",
+  "panel_usuario": "test10",
   "cobro_modo": "WhatsApp",
   "cobro_ambiente": "Pruebas",
   "tienda_abierta": "Sí",
@@ -94,6 +93,7 @@
   "f_avisame": "Sí",
   "catalogo_columnas": "3",
   "analytics_id": "",
+  "logo_tamano": "80",
   "tope_pago": "12110000",
   "cobro": "whatsapp",
   "cobro_pruebas": ""
