@@ -232,8 +232,17 @@ function red(t, o) {
      i('La versión nueva de la semilla') < i('Dependencias') && i('Dependencias') < i('Publicar maestro.gs'));
   ok('  ...un maestro nuevo de la semilla se publica sin PUBLICAR', /steps\.semilla\.outputs\.maestro \}\}" = "si"/.test(flujo));
   ok('  ...lo que se publica suma lo que dice semilla.json (una sola lista)', /require\('\.\/semilla\.json'\)\.propios/.test(flujo));
-  ok('  ...corren TODAS las baterías', /GUARDIA: \$\{\{ steps\.semilla\.outputs\.cambio == 'si' && 'todas'/.test(flujo) &&
-     execFileSync('bash', ['publicacion.sh'], { env: Object.assign({}, process.env, { GUARDIA: 'todas', SOLO_DECIDIR: '1', GITHUB_REPOSITORY: 'x/y', GH_TOKEN: 'z' }) }).toString().trim() === 'todas');
+  /* 0.22.0 · «TODAS» EN LA SEMILLA; EN UNA TIENDA, LA TIENDA VIVA (bitácora
+     102). El flujo sigue pidiendo todas cuando trae una versión nueva, y en la
+     semilla eso es lo que se corre; dentro de una tienda, ese código es el de
+     una etiqueta que ya pasó la suite entera, y lo que se prueba es lo que se
+     horneó con sus datos. */
+  const decide = repo => execFileSync('bash', ['publicacion.sh'], { env: Object.assign({}, process.env,
+    { GUARDIA: 'todas', SOLO_DECIDIR: '1', GITHUB_REPOSITORY: repo, GH_TOKEN: 'z' }) }).toString().trim();
+  ok('  ...corren TODAS las baterías en la semilla, y en una tienda la tienda viva',
+     /GUARDIA: \$\{\{ steps\.semilla\.outputs\.cambio == 'si' && 'todas'/.test(flujo) &&
+     decide('laboratoriodigital/tienda') === 'todas' && decide('laboratoriodigital/prueba1') === 'tienda',
+     decide('laboratoriodigital/tienda') + ' · ' + decide('laboratoriodigital/prueba1'));
   ok('  ...siempre directo a main (automático)', /AUTO: \$\{\{ inputs\.aprobacion != 'con-pull-request' \|\| steps\.semilla\.outputs\.cambio == 'si' \}\}/.test(flujo));
   ok('  ...y si algo falla después de publicar el maestro, vuelve al de antes', i('Volver atrás el maestro') > i('Publicar en main') &&
      /if: failure\(\) && steps\.publicado\.outcome == 'success' && steps\.semilla\.outputs\.maestro == 'si'/.test(flujo) &&
@@ -257,17 +266,26 @@ function red(t, o) {
   ok('  ...la respuesta viaja a la herramienta, que solo escribe flujos si se pueden empujar',
      /FLUJOS: \$\{\{ steps\.permiso\.outputs\.flujos \}\}/.test(flujo) &&
      /excluir: puedeFlujos\(\)/.test(fs.readFileSync('../montar/actualizar-semilla.mjs', 'utf8')));
-  ok('  ...y el empujón usa el de la semilla cuando sirve, y el propio cuando no',
-     /empujar\(\) \{/.test(flujo) && /x-access-token:\$\{SEMILLA_TOKEN\}/.test(flujo) &&
+  /* 0.22.1 · El empujón con `SEMILLA_TOKEN` en la URL no funcionó NUNCA
+     (bitácora 103): `actions/checkout` deja una cabecera con el permiso de
+     Actions que gana a cualquier token en la URL. La tienda empuja con el suyo
+     y sus flujos los pone la flota. */
+  ok('  ...y el empujón va con el permiso de la tienda, sin fingir otro en la URL',
+     /empujar\(\) \{/.test(flujo) && !/x-access-token:\$\{SEMILLA_TOKEN\}/.test(flujo) &&
      /git push --quiet origin "HEAD:\$1"/.test(flujo) &&
      !/git push (--quiet )?(-u )?origin HEAD:(main|"\$rama")/.test(flujo),
-     'un permiso corto deja los flujos atrás; no puede dejar la tienda sin publicar');
+     'lo que el permiso de la tienda no puede escribir —los flujos— lo entrega la flota');
 
   {
     const { puedeFlujos } = await import(path.resolve('../montar/actualizar-semilla.mjs'));
-    ok('PUEDE-FLUJOS: manda lo que contestó GitHub, y si nadie preguntó, que el permiso exista',
-       puedeFlujos({}) === false && puedeFlujos({ SEMILLA_TOKEN: 'x' }) === true &&
-       puedeFlujos({ SEMILLA_TOKEN: 'x', FLUJOS: 'no' }) === false && puedeFlujos({ FLUJOS: 'si' }) === true);
+    /* 0.22.1 · UNA TIENDA NO ESCRIBE SUS FLUJOS, NUNCA (bitácora 103): los
+       entrega la flota. Ni con token, ni con la comprobación diciendo que sí:
+       el push de una tienda va SIEMPRE con el permiso de Actions, que no
+       puede escribirlos. Solo el banco de pruebas los sigue escribiendo. */
+    ok('PUEDE-FLUJOS: en una tienda, nunca; solo en el banco de pruebas',
+       puedeFlujos({}) === false && puedeFlujos({ SEMILLA_TOKEN: 'x' }) === false &&
+       puedeFlujos({ SEMILLA_TOKEN: 'x', FLUJOS: 'si' }) === false &&
+       puedeFlujos({ SEMILLA_ORIGEN: '/tmp/x' }) === true);
   }
 
   /* La parte de navegador necesita el servidor que le levanta `todas.sh`. La

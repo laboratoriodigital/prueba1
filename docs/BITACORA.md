@@ -2292,6 +2292,228 @@ vez que se corrió encontró exactamente los dos rojos que la tienda estaba
 enseñando en ese momento. **Lo prueban** ella misma, sus cinco aserciones, y las
 dos guardas que la hicieron falta.
 
+**96 · El permiso se sembraba primero y se comprobaba después.** La tienda ya
+publicaba sola, y al tocar *Publicar* desde la hoja salió «el permiso de esta
+tienda no sirve o se venció». El `DISPARO_TOKEN` de `tiendas` —el que el maestro
+guarda como `GITHUB_TOKEN` para disparar flujos— está vencido o es de grano fino
+sobre «Only select repositories» y no incluye a esa tienda. Eso solo, ya estaba
+previsto: `conectar` lo comprueba y lo dice (bitácora 87). Lo que no estaba
+previsto es el ORDEN. El comentario de la comprobación decía, con todas sus
+letras, «se le pregunta aquí, ANTES de sembrárselo», y el programa hacía lo
+contrario: sembraba el token y después preguntaba si servía. Como desde la
+0.20.2 el maestro reemplaza el permiso que ya no sirve por el que llega
+(bitácora 89), un token muerto **pisa uno bueno**, el aviso queda tres líneas
+más abajo en un resumen que nadie vuelve a abrir, y el fallo sale semanas
+después, en el mostrador, el día que el comercio toca Publicar.
+
+Ahora se comprueba primero y, si no sirve, no se siembra: un permiso muerto no
+borra al que la tienda pudiera tener. `conectar` no se cae por eso —los
+secretos, la hoja y el primer montaje son lo que de verdad conecta una tienda—;
+deja el aviso de GitHub en la corrida y dice qué ampliar. La lección es sobre los
+comentarios: este describía la intención y llevaba versiones contradiciendo al
+código de al lado. Un comentario no vigila nada; ahora hay una aserción que lee
+el propio archivo y exige que la comprobación esté escrita ANTES de la siembra.
+**Lo prueban** 3 aserciones de la flota, con el control negativo —invertir las
+dos líneas— visto en rojo.
+
+**97 · Se comprobaba el permiso preguntando por la puerta equivocada.** El
+comercio tocaba Publicar y le salía «el permiso de esta tienda no sirve o se
+venció» —con `DISPARO_TOKEN` bien puesto en `tiendas`, sobre todos los
+repositorios del dueño—. El maestro tenía guardado un token viejo y no lo
+reemplazaba, porque desde la 0.20.2 solo reemplaza el que ya no sirve… y la
+comprobación de «sirve» era `GET /repos/{tienda}`, que solo demuestra *Metadata:
+read*. Un token que ve el repositorio y no puede disparar nada pasaba la prueba y
+se respetaba para siempre. Ahora se pregunta por los FLUJOS de ese repositorio,
+que ya exige *Actions* —el permiso del que depende el botón—. No prueba la
+escritura, porque probarla sería dispararla, pero descarta el caso que costó la
+tarde. Volver a correr `conectar` reemplazó el token y el botón funcionó. **Lo
+prueba** 1 aserción de `permiso.js`, con su control negativo.
+
+**98 · El logo, y el archivo que ya estaba en su carpeta.** La clave `logo`
+existía desde hacía versiones y solo aceptaba una URL de Cloudinary, que era la
+única forma que había cuando se escribió: el comercio que sube su logo al Drive
+—la misma carpeta donde ya tiene sus fotos— no tenía manera de usarlo. Ahora se
+nombra igual que en la columna Imágenes del catálogo: el archivo (`logo.png`) o
+una dirección completa, y lo resuelve `urlFoto()`, el mismo sitio por donde pasan
+todas las fotos. Tres decisiones del dueño, y las tres estrechan a propósito:
+**solo la barra** —ni portada ni pie: importa más que la página siga siendo una
+sola petición y no se mueva al cargar—, **el mismo archivo sirve de icono** de la
+pestaña —pedir dos archivos para lo mismo es pedir que uno se quede viejo— y **el
+nombre sigue escrito** al lado, con el logo en `alt` vacío, porque lo que nombra
+la tienda es lo que leen Google y un lector de pantalla y eso no se cambia por una
+imagen. Si el archivo no llega, vuelve el signo dibujado en vez de un icono roto;
+el logo cuenta como foto usada, así que el montaje deja de llamarlo «foto que
+nadie usa» y empieza a avisar por nombre cuando está mal escrito; y el respaldo se
+lo lleva, así que la marca se ve también con Google caído. **Lo prueba**
+`pruebas/logo.js`, 21 aserciones.
+
+**99 · «Nada que publicar pese a haber detectado novedades», otra vez, y esta vez
+era una lista.** El flujo `fotos` decide qué publicar con una lista de rutas
+escrita en el propio flujo (`PUBLICA`), y esa lista no incluía
+`publicar/404.html` —que escribe `preparar-index`, una de las herramientas que ese
+mismo flujo corre—. Así que al cambiar el nombre o los colores, el paso que MIRA
+decía «hay novedades», el que PUBLICA no encontraba nada suyo, y la corrida moría
+con un mensaje que suena a fallo de git y era una lista incompleta. Cada
+herramienta ya declara lo que escribe (A-8 · `ESCRIBE`), así que la lista no se
+revisa a ojo: una batería compara las dos cosas para todos los flujos. Y el
+mensaje de ese fallo, que decía «mira los dos volcados», ahora enseña la lista de
+lo que el flujo publica y el estado de TODO el repositorio, que es donde se ve si
+el horneado escribió en otro sitio. **Lo prueba** 1 aserción de `montaje.js`, con
+su control negativo.
+
+**100 · El último copiar-y-pegar del despliegue, y la lista que paraba a la
+flota.** Quedaba un paso manual en cada versión: abrir `panel.gs`, copiarlo y
+pegarlo en el Apps Script de la hoja de administración. No era un problema
+técnico sino una omisión: es EXACTAMENTE el mismo trabajo que el montaje ya hace
+con el maestro de cada tienda —`clasp push` y actualizar la implementación—,
+sobre otro proyecto. Así que lo hace la misma herramienta: `publicar-maestro.mjs`
+recibe `ARCHIVO` y sube el que le digan, y un flujo nuevo en `tiendas` —`panel`—
+clona la semilla en la versión pedida y la llama con `ARCHIVO=panel.gs`. Copiar
+esa herramienta al otro repositorio habría sido la misma regla en dos sitios, y
+la copia se separa de su original el día que una de las dos cambia (patrón 2).
+Lo único distinto entre los dos casos es la hoja: el maestro lleva el id de la
+suya horneado porque puede vivir suelto, y el panel está pegado a la suya y la
+abre con `getActive()`. Dos secretos nuevos, solo en `tiendas`:
+`PANEL_SCRIPT_ID` y `PANEL_CLASPRC`.
+
+En la misma tanda, `flota` › actualizar se detuvo en seco: «**prueba-panel**: no
+pude leer su versión — 404. Me detengo aquí», y ninguna tienda recibió nada. El
+repositorio de esa tienda de prueba ya no existe y su fila seguía en
+`flota.json`, que lo edita una persona. Una tienda que NO ESTÁ no es un fallo de
+la versión que se está repartiendo —es un dato viejo—, así que ahora se dice, se
+salta y al final se recuerda cuáles hay que quitar de la lista; lo que sigue
+deteniendo a la flota es una tienda que está y falla, que es para lo que existen
+los anillos. Si no existe NINGUNA de las pedidas, eso sí es rojo: alguien pidió
+repartir una versión y no se repartió a nadie. Y de paso, `actualizar.mjs` se
+ejecutaba al importarlo: la batería que quería comprobar una función suya
+arrancaba la actualización de la flota entera. Ahora lleva el mismo remate que
+las demás herramientas —corre cuando se lanza, no cuando se importa—. **Lo
+prueban** 3 aserciones de `montaje.js` y 8 de la flota.
+
+**101 · Un archivo que nadie pidió dejó la tienda sin publicar.** La tienda de
+prueba corrió su actualización entera —2473 aserciones en verde, el catálogo
+horneado, las fotos bajadas— y el push se rechazó: «refusing to allow a GitHub
+App to create or update workflow `.github/workflows/fotos.yml` without
+`workflows` permission». GitHub no rechaza EL ARCHIVO: rechaza el push entero.
+Así que la tienda se quedó sin publicar su catálogo, su índice y sus fotos por un
+archivo de flujo que la actualización había escrito y que ni el comercio ni nadie
+había pedido en esa corrida.
+
+La causa de fondo es una asimetría que ya conocíamos y no habíamos rematado: el
+`GITHUB_TOKEN` de Actions no puede escribir `.github/workflows` NUNCA, y el
+permiso que sí puede —`SEMILLA_TOKEN`— es opcional. Lo que faltaba era que esa
+asimetría no se pagara con todo lo demás. Dos redes, a propósito, porque la
+primera depende de una comprobación que puede fallar y la segunda no depende de
+nada: **no se commitea lo que no se va a poder empujar** —si los flujos están en
+el índice y no hay permiso para ellos, se sacan y se publica el resto—, y si aun
+así el rechazo llega, **se quitan del commit y se vuelve a empujar una vez**. En
+los dos casos el resumen dice qué se quedó atrás y con qué llega: un
+`SEMILLA_TOKEN` con *Contents* y *Workflows* en escritura sobre esa tienda. Una
+publicación a medias es mejor que ninguna, siempre que se diga cuál es la mitad
+que falta. **Lo prueban** 4 aserciones de `montaje.js`, con su control negativo,
+y una simulación con un repositorio de juguete para comprobar que los comandos
+hacen lo que el comentario dice.
+
+**102 · Por qué la automatización de las tiendas tardó tanto, y el cambio que lo
+cierra.** Lo pidió el dueño después de la duodécima vuelta: cada arreglo
+destapaba el fallo siguiente, y cada fallo costaba media hora —cambio, push,
+release, montaje en la tienda, captura, diagnóstico—. El último fue `config.js`
+rojo dentro de prueba1: cuatro aserciones que daban por hecho que el icono de la
+pestaña es el marcador dibujado, y prueba1 tiene logo —que desde la 0.21.0 es el
+icono—. El propio archivo tenía escrita, desde hace meses, la lección exacta:
+«el flujo `montaje` corre las baterías sobre el index.html que acaba de escribir
+CON LA CONFIGURACIÓN DE ESA TIENDA, así que cualquier cosa quemada aquí es una
+tienda que no se puede montar». La lección estaba escrita y se rompió igual.
+
+Esa es la conclusión de la revisión: **no era mala suerte ni falta de cuidado;
+era la arquitectura.** Mirando las entradas 90 a 102 juntas salen cinco causas,
+y la primera explica casi todo:
+
+1. **La guardia que decidía si una tienda publica era la suite de desarrollo de
+   la semilla.** ~2.480 aserciones escritas para probar el código de la semilla,
+   con los datos de muestra de la semilla, en el repositorio de la semilla. Al
+   actualizarse, cada tienda las corría TODAS contra SUS datos y SU repositorio.
+   Cada suposición de «ser la semilla» era un bloqueo esperando turno: el flujo
+   `release` (93), las fotos de muestra (93), el respaldo de la plantilla (93),
+   la carpeta `servicio/` (94, 95), un comercio con logo (102). Y no protegía de
+   nada, porque el código de una tienda actualizada es el de una etiqueta que
+   `release` no corta sin la suite completa en verde: repetir esas pruebas no
+   añadía información, solo maneras de fallar. Encima era lo que se comía los
+   minutos de Actions: dos a cinco por publicación.
+2. **La tienda se actualiza con su versión vieja.** El que se actualiza a sí mismo
+   ejecuta la versión anterior de sí mismo, así que un arreglo en el flujo o en
+   la herramienta llega una versión tarde, y si la versión vieja bloquea la
+   actualización, no hay forma de que la nueva llegue (90, 92, 95, 101).
+3. **Cuatro permisos con alcances que se pisan** —`DISPARO`, `SEMILLA`, `FLOTA`,
+   `ALTA`— y copias por tienda que envejecen solas (89, 92, 96, 97, 101).
+4. **Fallar rápido en producción esconde el fallo siguiente**: cada corrida
+   enseñaba uno solo, y cada uno costaba una vuelta entera.
+5. **Mi definición de «hecho» era la equivocada**: «la suite en verde en la
+   semilla», cuando lo que importa es «una tienda de verdad publica». Varios de
+   los rojos los puse yo, con aserciones que eran ciertas aquí.
+
+EL CAMBIO. En una tienda, lo que decide si se publica ya no es la suite: es
+**`pruebas/tienda-viva.js`**, que mira los archivos reales de `publicar/` y SOLO
+con invariantes —cosas ciertas para cualquier comercio con cualquier hoja, y
+falsas únicamente cuando el horneado salió mal—: que la página sepa a qué maestro
+preguntar y espere su misma versión, que su política la deje hablar con él, que
+el catálogo se lea y no repita identificadores, que el respaldo lleve los mismos
+productos que el catálogo y sea de la misma tienda, y que la página abra de
+verdad en un navegador y pinte los productos de ESA tienda sin un error. Ni un
+nombre, ni un color, ni un producto escritos: una aserción aparte lo exige. Lo
+que es del comercio pero no bloquea —una foto nombrada que no subió— se avisa y
+no detiene. En la semilla no cambia nada: ahí sí se prueba el código, entero.
+
+La decisión vive en `pruebas/publicacion.sh` y no en el flujo, y eso resuelve la
+causa 2 para este cambio: la actualización escribe `pruebas/` ANTES de correr la
+guardia, así que una tienda con el flujo viejo ya usa la guardia nueva en la
+misma corrida que la trae. Y la tiendita (95) corre ahora esa misma guardia,
+también con los datos de OTRO comercio —su logo de icono, otros colores, otro
+nombre—, que es exactamente lo que tumbó a prueba1: lo que antes se descubría en
+producción se descubre en tres segundos antes del commit. La primera corrida lo
+demostró encontrando un rojo mío en la aserción nueva, antes de que saliera de
+aquí. Las causas 3 y 4 quedan anotadas en el plan: la 3 ya no tiene huecos
+conocidos (89, 96, 97 y 101 los cerraron), y la 4 pierde casi todo su costo
+cuando la guardia es pequeña y dice todo lo que falla de una vez. **Lo prueban**
+`tienda-viva.js` (12), 4 aserciones de `montaje.js`, 2 de `tiendita.js` y la
+revisada de `actualizar.js`, con los controles negativos en rojo —un horneado
+contra otro maestro, un catálogo y un respaldo de corridas distintas, un error
+de JavaScript en la página— y el positivo en verde: los datos de prueba1.
+
+**103 · Ningún push de una tienda usó nunca `SEMILLA_TOKEN`, y los flujos pasan a
+ser de la flota.** Con la tienda viva, prueba1 pasó la guardia en dos segundos
+—12/12— y el push volvió a rechazarse: «refusing to allow a GitHub App to create
+or update workflow». Esta vez se entendió por qué, y no era el permiso: el
+montaje intentaba empujar con `SEMILLA_TOKEN` metido en la URL, y eso **no
+funcionó ni una sola vez**. `actions/checkout` deja en `.git/config` una cabecera
+de autorización con el permiso de Actions, y git la manda en cada petición a
+GitHub gane quien gane en la URL. Mientras el checkout se hacía con
+`SEMILLA_TOKEN` —hasta la 0.20.5— esa cabecera ERA la del token bueno y todo
+funcionaba sin que nadie supiera por qué; cuando en la 0.20.5 lo cambié por el
+permiso propio (bitácora 92, con buena intención), todos los pushes de todas las
+tiendas pasaron a ir con el de Actions. Desde entonces ninguna tienda pudo
+recibir flujos nuevos, y como el arreglo de cada cosa viajaba justo en esos
+flujos, ninguna podía salir de ahí sola. Las bitácoras 101 y esta son el mismo
+fallo visto dos veces.
+
+La solución no es otro truco con el token sino quitarle a la tienda un trabajo
+que no puede hacer. **Los flujos de una tienda los entrega la flota**: `FLOTA_TOKEN`
+tiene *Workflows* en escritura sobre todas, así que `flota/flujos.mjs` copia los
+`.github/workflows` de la semilla, en la versión pedida, a cada tienda —por la
+API de contenidos, solo los que cambian—. Lo hace sola `flota › actualizar`
+después de cada tienda que se actualiza bien, y se puede pedir a mano con
+`flota › flujos`, que es también el rescate de una tienda atascada. Del lado de
+la tienda, sus flujos no van nunca en su commit: los saca `publicacion.sh` —que
+llega con la actualización ANTES de correr, así que funciona con el flujo viejo
+que hay que rescatar— y los saca también el paso «¿Cambió algo?» del flujo
+nuevo. El empujón deja de fingir que otro token en la URL cambia algo. Y
+`SEMILLA_TOKEN` en cada tienda deja de hacer falta para los flujos: un permiso
+menos por tienda, que era la causa 3 de la revisión. **Lo prueban** 7 aserciones
+de la flota —con un GitHub de mentira en memoria: escribe solo lo que cambia,
+pasa el `sha` al reemplazar, no escribe nada en ensayo—, 1 de la tiendita sobre
+un git de verdad, y las revisadas de `montaje.js` y `actualizar.js`, con sus
+controles negativos en rojo.
+
 **80 · La documentación que se quedó en el camino viejo.** El mapa de
 despliegue seguía diciendo que el camino corto «todavía no ha corrido de punta
 a punta en una tienda de verdad» —ya había montado dos— y presentaba los

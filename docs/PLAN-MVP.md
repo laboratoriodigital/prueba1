@@ -1541,6 +1541,62 @@ agotado.
 - [x] Escrito: el que se actualiza a sí mismo ejecuta la versión anterior de sí
       mismo, así que lo retirado se limpia una versión más tarde.
 
+### 0.21.0 · El logo del comercio (y dos permisos bien preguntados)
+
+**M7 · El logo**  · 2 pt · ✅ (bitácora 98)
+- [x] `logo` se nombra como una foto del catálogo: el archivo de la carpeta de Drive
+      o una dirección completa; lo resuelve `urlFoto()`.
+- [x] Solo la barra, reemplazando al signo; el nombre sigue escrito (alt vacío).
+- [x] El mismo archivo sirve de icono de la pestaña si no hay `favicon`.
+- [x] Cuenta como foto usada: el montaje avisa por nombre si falta, y si no llega
+      vuelve el signo en vez de un icono roto.
+- [x] Batería propia: `pruebas/logo.js`.
+
+**C-13 · Dos comprobaciones que preguntaban mal**  · 1 pt · ✅ (bitácora 97 y 99)
+- [x] El maestro juzga su permiso preguntando por los **flujos**, no por el repositorio.
+- [x] `fotos` publica todo lo que declaran las herramientas que corre (`ESCRIBE`),
+      con una batería que compara las dos listas.
+
+### 0.21.1 · El panel se publica solo
+
+**3.11b · `panel.gs` sin copiar y pegar**  · 1 pt · ✅ (bitácora 100)
+- [x] `publicar-maestro.mjs` sube el archivo que le digan (`ARCHIVO`).
+- [x] Flujo `panel` en `tiendas`: clona la semilla y la llama con `panel.gs`.
+      Secretos nuevos: `PANEL_SCRIPT_ID` y `PANEL_CLASPRC`.
+- [x] Una tienda que ya no existe en GitHub no detiene a la flota: se salta y se
+      dice cuál quitar de `flota.json`.
+
+### 0.21.2 · Lo que no se puede empujar no bloquea la publicación
+
+**C-14 · El push que se rechazaba entero**  · 1 pt · ✅ (bitácora 101)
+- [x] Los flujos salen del commit cuando no hay permiso para escribirlos.
+- [x] Y si el rechazo llega igual, se quitan y se publica el resto.
+- [x] El resumen dice qué se quedó atrás y con qué llega.
+
+### 0.22.0 · Lo que decide si una tienda publica
+
+**C-15 · La tienda viva**  · 3 pt · ✅ (bitácora 102)
+- [x] En una tienda, la guardia es `tienda-viva.js`: invariantes sobre lo horneado
+      con SUS datos, y la página abierta en un navegador. Ni un dato escrito.
+- [x] La decisión vive en `publicacion.sh`, que llega con la actualización: una
+      tienda con el flujo viejo ya usa la guardia nueva.
+- [x] La tiendita corre esa guardia también con los datos de otro comercio.
+- [x] De 2–5 minutos de Actions por publicación a segundos.
+
+**Pendiente de la revisión (bitácora 102)**
+- [ ] Causa 3: unificar los permisos de GitHub en los menos posibles, con una sola
+      comprobación de alcance al principio de cada flujo.
+- [ ] Causa 4: que `montaje` diga TODO lo que falla en una corrida, no lo primero.
+
+### 0.22.1 · Los flujos de las tiendas son de la flota
+
+**C-16 · Entregar flujos**  · 2 pt · ✅ (bitácora 103)
+- [x] `flota/flujos.mjs`: copia los `.github/workflows` de la semilla a cada tienda,
+      solo los que cambian. `flota › flujos` a mano; `actualizar`, sola.
+- [x] Una tienda no mete nunca sus flujos en su commit (`publicacion.sh` y el flujo).
+- [x] El push de la tienda va con su permiso, sin token en la URL.
+- [x] `SEMILLA_TOKEN` por tienda ya no hace falta para los flujos (causa 3, en parte).
+
 ### Lo que sigue después del MVP
 
 **M6 · La flota que se actualiza sola.** Diseñada y **fuera de esta entrega**

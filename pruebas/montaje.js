@@ -286,8 +286,11 @@ const configurar = (g, clave, valor) => {
   ok('SIN IMPLEMENTACIÓN previa explica qué hacer una sola vez',
      /no tiene ninguna implementación publicada/.test(src) &&
      /Cualquier persona/.test(src) && /abre esa URL una vez/.test(src));
-  ok('SUBE SOLO el maestro, no el repositorio entero',
-     /mkdtempSync/.test(src) && /writeFileSync\(join\(tmp, 'maestro\.gs'\)/.test(src) &&
+  /* 0.21.1 · El archivo lo dice ahora `ARCHIVO` —el maestro de fábrica, o
+     `panel.gs` cuando lo llama la flota (bitácora 100)—, pero lo que se prueba
+     es lo mismo: que se sube ESE archivo y nada más del repositorio. */
+  ok('SUBE SOLO el archivo que toca, no el repositorio entero',
+     /mkdtempSync/.test(src) && /writeFileSync\(join\(tmp, ARCHIVO\)/.test(src) &&
      /rootDir/.test(src), 'una carpeta temporal con lo único que debe existir allá');
   ok('  ...y la borra pase lo que pase', /finally \{[\s\S]{0,80}rmSync/.test(src));
   ok('  ...dejando la implementación pública, el error más repetido',
@@ -1516,7 +1519,9 @@ const configurar = (g, clave, valor) => {
     .filter(n => /\.js$/.test(n) && /Resultado: /.test(fs.readFileSync(n, 'utf8')));
   const todas = fs.readFileSync('./todas.sh', 'utf8');
   const auxiliares = ['servidor.js', 'gas.js', 'as.js', 'pn.js'];
-  const enLista = [...new Set(todas.match(/\b[a-z0-9]+\.js\b/g) || [])]
+  /* Con guion también: `tienda-viva.js` se leía como `viva.js` y la aserción
+     decía que una batería listada no estaba en la lista. */
+  const enLista = [...new Set(todas.match(/\b[a-z0-9][a-z0-9-]*\.js\b/g) || [])]
     .filter(n => auxiliares.indexOf(n) === -1);
   const sinCorrer = enDisco.filter(n => enLista.indexOf(n) === -1);
   ok('TODAS LAS BATER\u00cdAS est\u00e1n en todas.sh', sinCorrer.length === 0,
@@ -1894,7 +1899,10 @@ const configurar = (g, clave, valor) => {
                                                 GUARDIA: '' }, entorno) }).trim();
       } catch (e) { return 'reventó'; }
     };
-    const enFlujo = { GITHUB_REPOSITORY: 'x/y', GH_TOKEN: 't' };
+    /* La guardia corta es una decisión DE LA SEMILLA: en una tienda decide la
+       tienda viva (bitácora 102). Así que se pregunta desde el repositorio de
+       la semilla, que es donde esta regla sigue valiendo. */
+    const enFlujo = { GITHUB_REPOSITORY: 'laboratoriodigital/tienda', GH_TOKEN: 't' };
     const r = [decide('1', enFlujo), decide('0', enFlujo), decide(null, enFlujo),
                decide('1', { GITHUB_REPOSITORY: '', GH_TOKEN: '' })];
     ok('LA GUARDIA CORTA sale solo si el código tiene una corrida de pruebas en verde',
@@ -2725,6 +2733,145 @@ const configurar = (g, clave, valor) => {
      esSemilla({}) === true &&
      JSON.parse(fs.readFileSync('../semilla.json', 'utf8')).repositorio === 'laboratoriodigital/tienda',
      'sin GITHUB_REPOSITORY —en el equipo de alguien— esto es la semilla');
+}
+
+/* ═══ 27f. LO QUE UNA HERRAMIENTA ESCRIBE, EL FLUJO LO PUBLICA
+       (0.21.0 · bitácora 99) ═══
+   `fotos` decidía si había que publicar mirando una lista de rutas escrita en el
+   propio flujo (`PUBLICA`), y esa lista se quedó sin `publicar/404.html` —que lo
+   escribe `preparar-index`, una de las herramientas que ese mismo flujo corre—.
+   El resultado: el comercio cambiaba el nombre o los colores, el paso que MIRA
+   decía «hay novedades», el que PUBLICA no encontraba nada suyo, y la corrida
+   moría con «Nada que publicar pese a haber detectado novedades», que suena a
+   fallo de git y era una lista incompleta.
+
+   Cada herramienta ya declara lo que escribe (A-8 · `export const ESCRIBE`).
+   Así que la lista del flujo no se revisa a ojo: se compara con lo que declaran
+   las herramientas que ese flujo ejecuta. */
+{
+  const dir = '../.github/workflows';
+  const sueltos = [];
+  fs.readdirSync(dir).filter(f => /\.ya?ml$/.test(f)).forEach(f => {
+    const t = fs.readFileSync(dir + '/' + f, 'utf8');
+    const m = t.match(/\n\s*PUBLICA:\s*(.+)/);
+    if (!m) return;                                   // un flujo que no publica
+    const publica = m[1].trim().split(/\s+/);
+    const cubre = r => publica.some(p => r === p || r.indexOf(p.replace(/\/$/, '') + '/') === 0);
+    const herramientas = [...new Set([...t.matchAll(/node\s+(montar\/[\w.-]+\.mjs)/g)].map(x => x[1]))];
+    herramientas.forEach(h => {
+      if (!fs.existsSync('../' + h)) return;
+      let escribe = [];
+      try {
+        escribe = JSON.parse(cp.execFileSync('node',
+          ['-e', "import('./" + h + "').then(m => process.stdout.write(JSON.stringify(m.ESCRIBE || [])))"],
+          { cwd: '..', stdio: ['ignore', 'pipe', 'ignore'] }).toString() || '[]');
+      } catch (e) { return; }
+      escribe.filter(r => String(r).indexOf('publicar/') === 0)
+             .forEach(r => { if (!cubre(r)) sueltos.push(f + ' › ' + h + ' escribe ' + r); });
+    });
+  });
+  ok('LO QUE ESCRIBE cada herramienta está en la lista de lo que el flujo publica',
+     sueltos.length === 0, sueltos.join(' · ') ||
+     'ninguna escribe fuera de lo que su flujo publica');
+}
+
+/* ═══ 27g. LA MISMA HERRAMIENTA PUBLICA EL MAESTRO Y EL PANEL
+       (0.21.1 · bitácora 100) ═══
+   `panel.gs` corre en la hoja de administración de la flota y se pegaba A MANO
+   en cada versión: el último paso del despliegue que seguía siendo copiar y
+   pegar. Es el mismo trabajo que ya hace esta herramienta con el maestro de cada
+   tienda, así que lo hace ella —con `ARCHIVO=panel.gs`— y no una copia suya en
+   el repositorio de servicio, que se separaría el día que una de las dos cambie
+   (patrón 2). Lo único distinto es la hoja: el maestro lleva el id de la suya
+   horneado porque puede vivir suelto; el panel está pegado a la suya. */
+{
+  const t = fs.readFileSync('../montar/publicar-maestro.mjs', 'utf8');
+  ok('LA HERRAMIENTA sube el archivo que le pidan, y de fábrica el maestro',
+     /const ARCHIVO = String\(process\.env\.ARCHIVO \|\| 'maestro\.gs'\)/.test(t) &&
+     /readFileSync\(ARCHIVO, 'utf8'\)/.test(t) && /writeFileSync\(join\(tmp, ARCHIVO\)/.test(t),
+     'una copia de esta herramienta en el otro repositorio sería la misma regla en dos sitios');
+  ok('  ...y solo al maestro le hornea el id de su hoja',
+     /if \(ES_MAESTRO\) \{[\s\S]{0,400}?var HOJA_ID/.test(t) &&
+     /pegado a SU hoja/.test(t),
+     'exigirle HOJA_ID al panel sería pedirle algo que no tiene');
+  ok('  ...y la versión sale del archivo que se sube, no de un nombre escrito aquí',
+     /var VERSION\(\?:_\[A-Z\]\+\)\? = '\(\[\^'\]\+\)'/.test(t) &&
+     /readFileSync\(ARCHIVO, 'utf8'\)\s*\n?\s*\.match/.test(t),
+     'maestro.gs la llama VERSION y panel.gs, VERSION_PANEL');
+}
+
+/* ═══ 27h. UN ARCHIVO QUE NO SE PUEDE EMPUJAR NO DEJA A LA TIENDA SIN PUBLICAR
+       (0.21.2 · bitácora 101) ═══
+   GitHub rechaza un push ENTERO cuando el commit toca `.github/workflows` y el
+   permiso no puede escribir flujos —el GITHUB_TOKEN de Actions no puede nunca—.
+   La actualización escribe esos archivos, así que una tienda sin
+   `SEMILLA_TOKEN` útil se quedaba sin publicar su catálogo, sus fotos y su
+   índice por culpa de un archivo que nadie había pedido: el rechazo no dice
+   «los flujos no», dice «no».
+
+   Dos redes, porque la primera depende de una comprobación que puede fallar y
+   la segunda no depende de nada: no se COMMITEA lo que no se va a poder
+   empujar, y si aun así el rechazo llega, se quitan del commit y se publica el
+   resto. Lo que se queda atrás se dice, con lo que hay que poner para que
+   llegue. */
+{
+  const m = fs.readFileSync('../.github/workflows/montaje.yml', 'utf8');
+  ok('NO SE COMMITEA lo que no se va a poder empujar',
+     /require\('\.\/pruebas\/donde\.js'\)\.esSemilla\(\)[^\n]*= "false" \] && \\\n\s+! git diff --cached --quiet -- \.github\/workflows; then/.test(m) &&
+     /git restore --staged --worktree -- \.github\/workflows/.test(m) &&
+     /Los flujos se quedan como estaban/.test(m),
+     'un archivo que sobra no puede dejar la tienda sin catálogo');
+  /* 0.22.1 · Y en una tienda, SIEMPRE: el push de una tienda no puede escribir
+     flujos con ningún token, así que los pone la flota (bitácora 103). */
+  ok('  ...y en una tienda no se commitean nunca: los entrega la flota',
+     /tiendas\\` › Actions › \*\*flota\*\* › \\`flujos\\`/.test(m));
+  ok('  ...y si el rechazo llega igual, se quitan y se publica el resto',
+     /workflow\.\*without \.workflows\. permission/.test(m) &&
+     /git commit --quiet --amend --no-edit/.test(m) &&
+     /Los flujos se quedaron atrás/.test(m),
+     'una publicación a medias es mejor que ninguna, si se dice cuál es la mitad que falta');
+  ok('  ...y el push no finge que otro token en la URL cambia algo',
+     !/x-access-token:\$\{SEMILLA_TOKEN\}/.test(m) && /cabecera con el permiso de Actions/.test(m),
+     '`actions/checkout` deja una cabecera que gana a cualquier token en la URL');
+}
+
+/* ═══ 27i. LO QUE DECIDE SI UNA TIENDA PUBLICA (0.22.0 · bitácora 102) ═══
+   Hasta la 0.21, una tienda corría la suite ENTERA de la semilla antes de
+   publicar. Cinco bloqueos seguidos salieron de ahí —cada uno, una suposición de
+   la semilla que dentro de una tienda era falsa— sin que ninguno protegiera de
+   nada: el código de una tienda actualizada es el de una etiqueta que `release`
+   no corta sin la suite en verde. Ahora, en una tienda, decide `tienda-viva.js`:
+   solo lo que se hornea con SUS datos, y solo con invariantes. */
+{
+  const pub = fs.readFileSync('./publicacion.sh', 'utf8');
+  const decide = (repo, extra) => cp.execFileSync('bash', ['publicacion.sh'],
+    { env: Object.assign({}, process.env, { GITHUB_REPOSITORY: repo, SOLO_DECIDIR: '1' }, extra || {}),
+      stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+  ok('EN UNA TIENDA la guardia es la tienda viva, aunque el montaje pida «todas»',
+     decide('laboratoriodigital/prueba1', { GUARDIA: 'todas' }) === 'tienda' &&
+     decide('laboratoriodigital/tienda', { GUARDIA: 'todas' }) === 'todas',
+     'la semilla sigue probando su código entero; la tienda, lo que hornea');
+  ok('  ...y la decisión se toma ANTES de mirar GUARDIA, en un archivo que llega con la actualización',
+     pub.indexOf("require('./donde.js').esSemilla()") !== -1 &&
+     pub.indexOf("require('./donde.js').esSemilla()") < pub.indexOf('[ "$GUARDIA" = "todas" ]'),
+     'en el flujo llegaría una versión tarde, que es lo que tenía bloqueadas a las tiendas');
+  ok('  ...y SUITE_ENTERA la fuerza en cualquier sitio, para quien quiera mirar',
+     decide('laboratoriodigital/prueba1', { SUITE_ENTERA: '1' }) === 'todas');
+
+  /* La tienda viva no puede saber NADA de ningún comercio: una aserción que
+     dependa de los datos de uno es una tienda que no se puede publicar. */
+  const viva = fs.readFileSync('./tienda-viva.js', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const { terminos } = JSON.parse(fs.readFileSync('../terminos-prohibidos.json', 'utf8'));
+  /* Los identificadores de muestra, si hay catálogo: una tienda recién nacida
+     no lo tiene, y abrirlo a ciegas es justo lo que la 27e prohíbe. (La
+     tiendita lo encontró antes de que llegara a ninguna tienda.) */
+  const deMuestra = fs.existsSync('../publicar/catalogo.json')
+    ? (JSON.parse(fs.readFileSync('../publicar/catalogo.json', 'utf8')).productos || []).map(p => String(p.id)).filter(Boolean)
+    : [];
+  const sabe = [...terminos, ...deMuestra].filter(t => viva.toLowerCase().indexOf(String(t).toLowerCase()) !== -1)
+    .concat((viva.match(/#[0-9A-Fa-f]{6}\b/g) || []));
+  ok('  ...y la tienda viva no nombra ni un producto, ni un comercio, ni un color',
+     sabe.length === 0, sabe.join(', ') || 'solo invariantes');
 }
 
 /* ═══ 28. LAS QUE SE EJECUTAN A MANO, ENCONTRABLES ═══
