@@ -1,7 +1,7 @@
 {
  "esquema": 1,
  "version": "2026-09-22-8",
- "generado": "2026-09-29T03:56:01.706Z",
+ "generado": "2026-09-29T04:34:09.451Z",
  "productos": [
   {
    "id": "ejemplo1",
@@ -47,7 +47,7 @@
  "config": {
   "negocio": "prueba1",
   "whatsapp": "3178284725",
-  "logo": "",
+  "logo": "https://res.cloudinary.com/jga3k1oa/image/upload/v1788504032/chonto-2.jpg",
   "portada_titulo": "PRUEBATIENDA",
   "portada_texto": "[Dos líneas contando qué vendes y qué te hace distinto.]",
   "portada_puntos": "Producto de la semana|Entregas a todo el país|Pides y confirmas por WhatsApp",
@@ -93,6 +93,7 @@
   "f_rastreo": "Sí",
   "f_avisame": "Sí",
   "catalogo_columnas": "3",
+  "analytics_id": "",
   "tope_pago": "12110000",
   "cobro": "whatsapp",
   "cobro_pruebas": ""
