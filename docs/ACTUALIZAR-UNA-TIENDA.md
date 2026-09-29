@@ -21,6 +21,45 @@ Cómo saber qué versión tiene cada una: en el panel de tiendas, columna
 
 ---
 
+## La 0.18.1 (panel de tiendas): los enlaces del portal
+
+1. Pega el `panel.gs` nuevo en la hoja de administración y ejecuta `instalar`.
+   Los botones del portal ya no dependen de cómo esté escrita la columna
+   *Repositorio* (bitácora 79).
+2. Si tu repositorio de flota no se llama `tiendas`, ponlo en las propiedades
+   del script del panel: `REPO_FLOTA = dueño/nombre`.
+
+---
+
+## La 0.18.0 (tienda): volver atrás, el portal — y REPEGAR EL STUB
+
+1. Actualizar como siempre (Panel › *Versión de tu tienda*, el menú, o `release`
+   → `montaje` con el maestro). Llega también el flujo `restaurar`.
+2. **Repegar el stub** en la hoja: el de antes no dice en qué hoja está pegado,
+   que es lo que impide que el stub de una tienda administre otra (bitácora 76).
+   En el maestro: `A1_generarStub` › copiar › Extensiones › Apps Script de la
+   hoja › pegar encima › guardar.
+3. En la hoja de administración (*Panel de tiendas*), pega el `panel.gs` nuevo:
+   suma el menú **Panel › Abrir el portal**.
+4. Nada más. Para volver atrás: `A5_respaldos()` y `A6_restaurarDatos()` en el
+   maestro (los datos), y Actions › `restaurar` (el sitio o la versión).
+
+---
+
+## La 0.17.0 (tienda): HOJA_ID en las propiedades — una vez, a mano
+
+1. Actualizar como siempre (Panel › *Versión de tu tienda*, el menú, o `release`
+   → `montaje` con el maestro).
+2. **Una sola vez**, si el maestro se implementó antes de pegar `HOJA_ID`: en el
+   editor, `A0_instalar`, y *Implementar › Gestionar implementaciones › lápiz ›
+   Versión: Nueva versión › Implementar* (la URL no cambia).
+3. La hoja **Panel de tiendas** (la de administración, no la de la tienda):
+   pega el `panel.gs` nuevo, ejecuta `instalar` (suma la columna *Producto*),
+   menú › *Clave para el alta*, e impleméntala como aplicación web. La URL y la
+   clave van como `PANEL_URL` y `PANEL_CLAVE` en `tiendas`.
+
+---
+
 ## La 0.16.0 (tienda): el permiso se siembra, las fotos se comprueban — nada a mano
 
 1. Actualizar como siempre (Panel › *Versión de tu tienda*, el menú, o `release`
@@ -48,7 +87,9 @@ Cómo saber qué versión tiene cada una: en el panel de tiendas, columna
    etiqueta y no lo necesita (bitácora 70).
 4. **Opcional, `SEMILLA_TOKEN`** en cada tienda Panel (de grano fino: la semilla
    en lectura; la tienda con *Contents* y *Workflows* en escritura). Sin él la
-   tienda se actualiza igual, pero sin traer los flujos.
+   tienda se actualiza igual, pero sin traer los flujos. Y si lo tiene pero no la
+   incluye a ella, tampoco pasa nada desde la 0.20.5: el montaje lo comprueba, lo
+   dice en el resumen y trae todo menos los flujos (bitácora 92).
 5. **Desde la 0.14.0, las próximas versiones llegan solas**: Panel › Tienda ›
    *Versión de tu tienda* › Actualizar, el menú de la hoja, o la flota. Si una
    versión pide `A0_instalar()`, está escrito aquí.

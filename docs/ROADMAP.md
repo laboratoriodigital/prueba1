@@ -74,7 +74,8 @@ dispara el dueño (panel o menú de la hoja) o la flota (`tiendas` › flota ›
 actualizar), que va por anillos y se detiene si una falla. Una **Tienda
 Básica** (línea `organico`) se actualiza por pull request, que la flota
 fusiona sola tras las pruebas de la tienda, salvo si trae `publicar/index.html`.
-Falta: que la Básica aprenda a actualizarse sola, y el panel web de la flota.*
+Falta: que la Básica aprenda a actualizarse sola (3.9). El panel de la flota ya
+está: el portal de la hoja de administración (0.18.0, 3.7).*
 
 
 ## Fase 2 · El panel crece   ·  después del MVP
@@ -108,6 +109,12 @@ Lo básico —que una tienda se actualice sola— es **S3**, en la 1.1. Esta fas
 lo que viene después, cuando la flota ya se mueve y empieza a tener casos
 particulares.
 
+**Al 22 de septiembre de 2026 están hechos** 3.3 (el alta en dos flujos de tres
+campos), 3.4 (los secretos se siembran), 3.7 v1 (el portal en la hoja de
+administración) y 3.12 (volver atrás). **Siguen abiertos**, en este orden: 3.9
+(la Básica se actualiza sola), 3.7 v2 (el portal servido detrás de Cloudflare
+Access) y 3.11 (`CLASPRC`, el último paso a mano del alta).
+
 
 **3.1 Interruptores por tienda**   [MVP parcial]
 `f_*` en la configuración: la semilla sabe hacer algo y cada tienda lo enciende.
@@ -122,19 +129,30 @@ deja de recibir actualizaciones **solo en ese archivo** y lo dice en cada
 corrida, con su edad. **No se construye hasta que exista el primer caso real**:
 maquinaria sin uso es superficie de fallo.
 
-**3.3 Alta de una tienda desde un formulario**   [DISEÑADO · 0.15.0: `alta` + `conectar` en `laboratoriodigital/tiendas`, tres campos cada uno; la primera corrida falló en el 404 de la plantilla y se rehízo clonando la etiqueta — reemplaza al APARCADO]
+**3.3 Alta de una tienda desde un formulario**   [HECHO · 0.15.0 el diseño, 0.17.0 la primera tienda montada así (prueba1). `alta` + `conectar` en `laboratoriodigital/tiendas`, tres campos cada uno; clona la etiqueta de la semilla. Es el camino documentado en `DESPLIEGUE.md`. Falta: `CLASPRC` (3.11) y Cloudflare desde Actions]
 *El flujo `alta` de `tiendas` crea el repositorio desde la semilla de su línea,
 le pone su nombre, los permisos y las fusiones automáticas, `SEMILLA_TOKEN`, y
 su fila en `flota.json`; deja escrita la lista de Google y Cloudflare con los
-datos de esa tienda, y `conectar` pone los secretos y dispara el primer
-montaje. El camino documentado sigue siendo el manual hasta que corra una vez.*
-Crear el repositorio, ponerle su nombre, habilitar lo que hay que habilitar y
-cargar sus secretos. El flujo existe en este repositorio —`servicio/tienda-nueva.yml`—
-y está APARCADO a propósito: nunca se ha corrido de punta a punta, así que el
-camino documentado en `DESPLIEGUE.md` es el manual, que sí se ha corrido. Se
-retoma cuando montar una tienda a mano cueste más que mantener el flujo.
+datos de esa tienda. `conectar` pone los cuatro secretos y el permiso de GitHub
+del maestro, escribe en la hoja, **registra la tienda en la hoja de
+administración** (0.17.0) y dispara el primer montaje. Lo que queda a mano es
+Google —la cuenta, la hoja, implementar, el stub— y `CLASPRC`.*
+*0.17.0: el flujo viejo (`servicio/tienda-nueva.yml` aquí y su copia en
+tiendas), el que pedía de entrada el repositorio, la URL, el token, la
+plantilla y si era privado, se borró: lo reemplazan `alta` y `conectar`.*
 
-**3.7 El panel de la flota**   [VERSIÓN 1 · 0.15.0: `tiendas/panel/index.html`, estático, lo escribe `estado`; falta servirlo detrás de Cloudflare Access y sumarle las cifras del Panel de tiendas]
+**3.4 Sembrar los secretos desde el diagnóstico**   [HECHO · 0.16.0 — bitácora 72: `conectar` siembra los cuatro secretos y el permiso de GitHub del maestro; el alta, `SEMILLA_TOKEN`. A mano queda `CLASPRC`]
+La mitad del tiempo de montaje se va copiando secretos de una pantalla a otra, y
+cuatro de los cinco los sabe el maestro. Medido en la línea vieja: bajaría un
+despliegue de 30 a unos 18 minutos.
+
+**3.5 El stub que no se repega**   [PENSADO · evaluado dos veces]
+El código pegado en la hoja que dibuja el menú. Con el panel web, el menú de la
+hoja deja de ser el camino principal, así que esto **baja de prioridad solo**.
+La evaluación completa —con las dos formas posibles y la medición de diez
+minutos que decide cuál— está en `EVALUACION-stub-automatico.md`.
+
+**3.7 El panel de la flota**   [VERSIÓN 1 · 0.15.0: `tiendas/panel/index.html`, estático, lo escribe `estado` · 0.17.0: la hoja *Panel de tiendas* se llena sola desde `conectar` (bitácora 75) · 0.18.0: **el portal**, menú de la hoja › Abrir el portal, con las cifras y los enlaces de cada tienda (bitácora 78). Falta servir esa misma pantalla en una dirección, detrás de Cloudflare Access]
 Hoy la flota se ve en `ESTADO.md` y las cifras en la hoja *Panel de tiendas*.
 El paso siguiente es una página detrás de Cloudflare Access que junte las dos,
 con los botones de actualizar y publicar. Y encima, **tareas de valor para los
@@ -153,6 +171,19 @@ Llevar a la semilla `organico` lo que la 0.14.0 le dio a la Panel —`semilla.js
 de su montaje, la opción del menú y la vuelta atrás—. Con eso la flota deja
 de abrir pull requests en la Básica y todo queda en un solo modo.
 
+**3.13 Medición propia**   [SIGUIENTE · 0.19.0 dejó la costura — decisión 23]
+La tienda mide con Google Analytics 4 si la hoja pone `analytics_id`, y la
+página manda todo por una sola función, `medir()`. Lo que falta es el otro
+lado: una puerta o un Worker con almacenamiento que reciba esos eventos, y un
+tablero que los enseñe junto a las ventas. Con eso, los datos de comportamiento
+dejan de ser de Google y pasan a ser del comercio y nuestros — que es, además,
+lo que un comercio pequeño no puede comprar en ninguna otra parte.
+
+**3.10 Las gráficas de la Básica, como extra**   [PENSADO]
+La Básica tiene sus números en la pestaña Tablero de la hoja. Las gráficas
+del panel (M4) pueden llegarle como una página aparte, detrás del mismo token
+del menú: un extra que se puede cobrar o regalar.
+
 **3.11 Sin `CLASPRC`: que el maestro se publique a sí mismo**   [PENSADO]
 El último paso a mano del alta. El maestro podría recibir su versión nueva por
 una puerta y publicarse con la API de Apps Script usando su propia sesión
@@ -160,23 +191,12 @@ una puerta y publicarse con la API de Apps Script usando su propia sesión
 cambio, el token de montaje pasaría a poder cambiar el código del maestro: se
 decide antes de construirlo.
 
-**3.10 Las gráficas de la Básica, como extra**   [PENSADO]
-La Básica tiene sus números en la pestaña Tablero de la hoja. Las gráficas
-del panel (M4) pueden llegarle como una página aparte, detrás del mismo token
-del menú: un extra que se puede cobrar o regalar.
-
-**3.4 Sembrar los secretos desde el diagnóstico**   [HECHO · 0.16.0 — bitácora 72: `conectar` siembra los cuatro secretos y el permiso de GitHub del maestro; el alta, `SEMILLA_TOKEN`. A mano queda `CLASPRC`]
-La mitad del tiempo de montaje se va copiando secretos de una pantalla a otra, y
-cuatro de los cinco los sabe el maestro. Medido en la línea vieja: bajaría un
-despliegue de 30 a unos 18 minutos.
-
-**3.5 El stub que no se repega**   [PENSADO · evaluado dos veces]
-El código pegado en la hoja que dibuja el menú. Con el panel web, el menú de la
-hoja deja de ser el camino principal, así que esto **baja de prioridad solo**.
-La evaluación completa —con las dos formas posibles y la medición de diez
-minutos que decide cuál— está en `EVALUACION-stub-automatico.md`.
+**3.12 Volver atrás**   [HECHO · 0.18.0 — bitácora 77: los datos desde el maestro (`A5_respaldos`, `A6_restaurarDatos`), el sitio y la versión desde el flujo `restaurar` de cada tienda. Falta: restaurar una tienda entera desde la flota, y que el montaje avise solo cuando una publicación deja la tienda peor que antes]
+Está documentado en `DESPLIEGUE.md` › *Volver atrás*, con la tabla de qué se
+pierde, dónde está su respaldo y cómo se vuelve.
 
 ---
+
 
 ## Fase 4 · Vender más
 
@@ -203,9 +223,11 @@ como subdominios.
 
 ## Fase 5 · Operación
 
-**5.1 Restauración probada**   [SIGUIENTE]
-Hay respaldo semanal; no hay restauración. Un respaldo que nunca se restauró es
-una copia de seguridad decorativa. Va primero de esta fase.
+**5.1 Restauración probada**   [HECHO · 0.18.0 — 3.12, bitácora 77]
+Había respaldo semanal y no había restauración: una copia de seguridad
+decorativa. Ahora se restaura desde el maestro (pestañas sueltas, con copia
+previa, y sin las pestañas de lo que pasó) y desde el flujo `restaurar` (el
+sitio y la versión). Lo que queda de esta línea es recorrerlo sin urgencia: 5.5.
 
 **5.2 Archivado de las pestañas que solo crecen**   [PENSADO]
 `Pedidos` y `Validaciones` topan en 20.000 filas — entre 6.000 y 10.000 pedidos.
@@ -220,9 +242,12 @@ puede quitar es la máquina.
 Qué se borra, qué se le entrega y en qué formato, el día que un comercio se va.
 Es tan parte del producto como el alta.
 
-**5.5 Simulacro de reversión trimestral**   [PENSADO]
-Volver una tienda a la versión anterior, a propósito, con calendario. El camino
-existe desde el MVP (M6); lo que falta es haberlo recorrido sin urgencia.
+**5.5 Simulacro de reversión trimestral**   [SIGUIENTE]
+Volver una tienda a la versión anterior, a propósito, con calendario. Desde la
+0.18.0 el camino es un botón —Actions › `restaurar`— y por eso esto ya se puede
+hacer en cinco minutos sobre una tienda de prueba. Lo que falta es la
+costumbre: un trimestre sin simulacro es un procedimiento que no se sabe si
+funciona.
 
 ---
 

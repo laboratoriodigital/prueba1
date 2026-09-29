@@ -1390,6 +1390,157 @@ agotado.
 - [x] Las dos maneras, la de siempre de fábrica; el panel dice qué da cada una.
 - [x] Montaje y Publicar comprueban que Cloudflare de verdad transforma.
 
+### 0.17.0 · HOJA_ID en la versión implementada, y la hoja de administración
+
+**C-1 · «Falta HOJA_ID» al conectar**  · 1 pt · ✅ (bitácora 74)
+- [x] `A0_instalar` guarda `HOJA_ID` en las propiedades; el maestro las lee si
+      la constante llega vacía. El mensaje y `conectar` dicen cómo salir.
+
+**3.7b · La hoja de administración de tiendas**  · 1 pt · ✅ (bitácora 75)
+- [x] Puerta `registrar_tienda` con clave propia; `conectar` registra la tienda
+      (`PANEL_URL` + `PANEL_CLAVE`) sin tocar lo del operador.
+- [x] Columna *Producto* al final; el aspecto de los paneles.
+- [x] Fuera `tienda-nueva.yml`, el alta con los campos viejos.
+
+### 0.18.0 · El stub de otra tienda, volver atrás y el portal
+
+**C-2 · El stub de la tienda equivocada**  · 1 pt · ✅ (bitácora 76)
+- [x] El stub manda el ID de su hoja; el maestro rechaza el de otra y dice qué hacer.
+
+**R-1 · Volver atrás**  · 2 pt · ✅ (bitácora 77)
+- [x] Datos: `A5_respaldos` y `A6_restaurarDatos` (pestañas sueltas, copia previa,
+      y Pedidos/Pagos/Registro fuera de la lista a propósito).
+- [x] Sitio y versión: flujo `restaurar` en cada tienda, sin secretos nuevos.
+- [x] Pedir una versión exacta permite bajar (`actualizar-semilla.mjs`).
+
+**3.7b · El portal de administración**  · 1 pt · ✅ (bitácora 78)
+- [x] Menú de la hoja › Abrir el portal: cada tienda con sus cifras y sus enlaces.
+- [x] Abrirlo no consulta a ninguna tienda.
+
+### 0.18.1 · Los enlaces del portal y la documentación al día
+
+**C-3 · Los botones del portal**  · 1 pt · ✅ (bitácora 79)
+- [x] El repositorio se normaliza al leer la hoja; lo que no es `dueño/nombre`
+      no genera enlace. `REPO_FLOTA` para una flota con otro nombre.
+
+**D-13 · El mapa de despliegue y el roadmap, al día**  · 1 pt · ✅ (bitácora 80)
+- [x] `DESPLIEGUE.md` abre con el camino normal (`alta` → Google → `conectar` →
+      stub → Cloudflare) y marca con ⚙ lo que hace un flujo.
+- [x] Roadmap: 3.3 y 5.1 hechos, 3.12 sin número repetido, fase 3 en orden.
+
+### 0.19.0 · Medición, y la documentación que faltaba
+
+**M-1 · Google Analytics, opcional y horneado**  · 1 pt · ✅ (decisión 23, bitácora 81)
+- [x] `analytics_id` en la hoja; vacío = la tienda no carga nada de Google.
+- [x] La CSP de esa tienda crece solo cuando mide; `_headers` los nombra siempre.
+- [x] Una sola costura, `medir()`, con tres puntos de medida puestos.
+
+**D-14 · Runbook, funcionalidades y radiografía**  · 2 pt · ✅ (bitácora 82)
+- [x] `RUNBOOK-TECNICO.md`: paso a paso con comprobaciones, incidentes y tareas
+      recurrentes.
+- [x] `FUNCIONALIDADES.md`: todo lo que hace el producto, por categoría.
+- [x] `ARQUITECTURA.md`: credenciales completas (dónde nacen, qué permiten,
+      cómo se renuevan), flujos, camino de un pedido, medición, Cloudflare.
+- [x] Guardias que impiden que los tres envejezcan en silencio.
+
+### 0.20.0 · Salir al aire: acabado, revisión y la flota publicada
+
+**A-1 · El acabado de la tienda**  · 2 pt · ✅ (bitácora 84)
+- [x] Fuera la tipografía de Google: tres peticiones menos y ninguna espera.
+- [x] Capa de acabado al final de la hoja de estilos, sin tocar un id ni una clase.
+- [x] La CSP deja de permitir tipografías de fuera, en sus tres copias.
+
+**D-15 · La revisión, en el panel**  · 1 pt · ✅ (bitácora 85)
+- [x] Puerta `diagnostico` (panel, solo el dueño, solo POST) y *Revisión de tu
+      tienda* en el panel, con el resumen por puntos.
+- [x] El informe mira lo nuevo: HOJA_ID, stub pegado, permiso de GitHub,
+      medición y si se puede volver atrás.
+
+**3.7c · La dirección y el panel de la flota**  · 1 pt · ✅ (bitácora 83 y 86)
+- [x] El portal enseña la dirección que dice la tienda; `actualizar` la copia a
+      la fila.
+- [x] `flota` › estado publica el panel en Cloudflare si hay token.
+
+### 0.20.1 · Los mensajes que mandaban a mirar donde no era
+
+**C-4 · Actualizar una sola tienda**  · 1 pt · ✅ (bitácora 87)
+- [x] *Solo esta tienda* acepta el nombre corto; si no existe, lo dice con la
+      lista de las que sí y su anillo.
+- [x] El 404 de GitHub se explica: un token sobre «Only select repositories» no
+      incluye las tiendas nuevas. `conectar` lo comprueba antes de sembrarlo.
+
+**3.7d · El anillo en el portal**  · 1 pt · ✅ (bitácora 88)
+- [x] `conectar` manda el anillo; columna al final (R1) y chip en el portal.
+
+### 0.20.2 · El permiso que se cura solo
+
+**C-5 · Rotar `DISPARO_TOKEN`**  · 1 pt · ✅ (bitácora 89)
+- [x] El maestro comprueba el permiso guardado contra GitHub antes de
+      respetarlo; si ya no sirve, lo reemplaza el que llega con `conectar`.
+- [x] Casilla `forzar_permiso` en `conectar` para cambiarlo aunque sirva.
+- [x] El mensaje de 401 dice el camino completo.
+
+### 0.20.3 · Un flujo no llama a lo que la tienda no tiene
+
+**C-6 · El cronómetro**  · 1 pt · ✅ (bitácora 90)
+- [x] El montaje avisa y sigue si falta `montar/tiempos.mjs`.
+- [x] Batería: toda herramienta que un flujo ejecuta existe y está versionada.
+- [x] El alta se planta si el repositorio nuevo no trae lo que sus flujos llaman.
+
+### 0.20.4 · El resumen dice qué es, y una prueba no depende del calendario
+
+**C-7 · El día del mes**  · 1 pt · ✅ (bitácora 91)
+- [x] Los cobros se siembran relativos a hoy: la aserción vale cualquier día.
+- [x] `panel.js` entra en `calendario.js`: diez días de dos meses, con el 1, el
+      28 y los de mes largo.
+
+**C-8 · La ficha de la corrida**  · 2 pt · ✅ (bitácora 91)
+- [x] Los ocho flujos abren con **«Qué es esta corrida»**: qué es, sobre qué, cómo
+      está antes de tocar nada, qué se pidió y quién lo pidió.
+- [x] `montaje` y `fotos` cierran con **«Cómo quedó»**, con `always()`: en qué
+      estado queda la tienda, corra bien o mal.
+- [x] Nada se dice dos veces: el marcador de las baterías, una vez; los volcados
+      de cada herramienta, plegados.
+- [x] `fotos` y `pruebas` también toleran que falte el cronómetro (hueco de la
+      0.20.3).
+- [x] Baterías en los dos repositorios, cada una sobre sus propios flujos.
+
+### 0.20.5 · Un permiso opcional no puede estar en el camino crítico
+
+**C-9 · El checkout de la tienda**  · 1 pt · ✅ (bitácora 92)
+- [x] `montaje` se baja el repositorio con el permiso propio de la tienda.
+- [x] Pregunta si `SEMILLA_TOKEN` alcanza a ESTA tienda antes de contar con él, y
+      si no, dice qué ampliar en vez de morir con un 403.
+- [x] El empujón usa el de la semilla cuando sirve y el propio cuando no: los
+      flujos se quedan atrás, la tienda se publica igual.
+- [x] La herramienta solo escribe flujos que después se puedan empujar (`FLUJOS`).
+
+### 0.20.6 · La suite corre en dos sitios, y lo sabe
+
+**C-10 · Baterías que también son de la tienda**  · 2 pt · ✅ (bitácora 93)
+- [x] Lo que depende de ser la semilla se salta en una tienda, DICIÉNDOLO.
+- [x] El manifiesto de fotos se comprueba contra la carpeta, no contra una lista.
+- [x] El control negativo del respaldo no depende del repositorio.
+- [x] `publicar/_headers` viaja con la semilla: la única excepción en `publicar/`.
+- [x] Aserción nueva: ninguna batería abre a ciegas un archivo que una tienda no tiene.
+
+### 0.20.7 · Lo que la semilla retira, se retira
+
+**C-11 · Actualizar también quita**  · 1 pt · ✅ (bitácora 94)
+- [x] `semilla.json` declara `retirados`; la actualización los borra en la tienda.
+- [x] Acotado: nada de `publicar/`, `.git`, rutas absolutas ni `..`; lo rechazado se nombra.
+- [x] Retirar cuenta como cambio: si no, la tienda lo arrastra otra vez.
+- [x] La semilla no retira nada que todavía entregue.
+
+### 0.20.8 · La tiendita: probar como tienda, aquí
+
+**C-12 · Quien vigila la regla de la bitácora 93**  · 1 pt · ✅ (bitácora 95)
+- [x] `pruebas/tiendita.js`: copia del repositorio sin lo que `alta` no hereda, con
+      un resto de una versión vieja dentro, y las baterías de archivos corridas ahí.
+- [x] Las dos aserciones que hablaban de la semilla, guardadas (`esSemilla()`).
+- [x] Escrito: el que se actualiza a sí mismo ejecuta la versión anterior de sí
+      mismo, así que lo retirado se limpia una versión más tarde.
+
 ### Lo que sigue después del MVP
 
 **M6 · La flota que se actualiza sola.** Diseñada y **fuera de esta entrega**

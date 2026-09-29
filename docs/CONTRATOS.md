@@ -412,6 +412,7 @@ no pisar lo que el comerciante puso.
 | **El rastreo (M5)** | `f_rastreo` — `Sí` de fábrica (vacío también es Sí): cada pedido lleva en su mensaje de WhatsApp el enlace `pedido.html?n=…&s=…`. `No` = sin enlace, y la página de seguimiento dice que la tienda no lo tiene |
 | **Vender más (0.11.0)** | `f_avisame` — `Sí` de fábrica (vacío también): en lo agotado sale «Avísame cuando llegue». `catalogo_columnas` — `3` (de fábrica), `4` o `5` productos por fila en pantalla ancha; cualquier otra cosa se lee como 3. Con 4 la paginación va de 24 en 24 |
 | **Cómo se cierra la venta (M3.5)** | `cobro_modo` — `WhatsApp` (de fábrica, como siempre) o `Pasarela` (paga en línea con Bold). `cobro_ambiente` — `Pruebas` o `Producción`. **Las llaves de Bold no van aquí**: van en las propiedades del script (`BOLD_IDENTIDAD_SANDBOX`, `BOLD_SECRETA_SANDBOX`, `BOLD_IDENTIDAD_PRODUCCION`, `BOLD_SECRETA_PRODUCCION`). Pedir Pasarela sin sus llaves, o sin `sitio_url`, deja la tienda en WhatsApp y el diagnóstico lo dice |
+| **La medición (0.19.0)** | `analytics_id` — el identificador de Google Analytics 4 de esa tienda (`G-XXXXXXXXXX`). **Vacío de fábrica**, y vacío significa que la página no carga nada de Google, no pone cookies de medición y su política de seguridad ni siquiera nombra a `googletagmanager.com`. Con un valor válido, el montaje hornea el fragmento oficial de GA4 en el `<head>` y añade a la CSP de ESA tienda `https://www.googletagmanager.com`, `https://*.google-analytics.com` y `https://*.analytics.google.com`. Un valor que no sea `G-…` (un `UA-…` o un `GTM-…`) no se hornea y el panel dice por qué. Los eventos los manda la función `medir()` de la página: `agregar_al_carrito`, `enviar_pedido` y `pagar_en_linea` |
 | **El panel del comerciante** | `panel_usuario` — con qué nombre entra al panel. **La clave no está aquí y no puede estarlo**: vive como huella con sal en las propiedades del proyecto. Vacío = el panel está cerrado |
 
 **`orden_catalogo` (C-4).** Uno de estos cinco, escrito tal cual —se lee sin
@@ -671,10 +672,48 @@ de la hoja suma, al final, `version` → *Actualizar a la última versión*.
 **`sembrar`** (montaje) acepta además, al final, `repositorio` (0.15.0): lo
 escribe `conectar` desde el repositorio de servicio.
 
-**`permiso`** (0.16.0 · 3.4, montaje, **solo POST**) — pide `t` (token de
+**`permiso`** (0.16.0 · 3.4; 0.20.2: comprueba el guardado, montaje, **solo POST**) — pide `t` (token de
 montaje), `tk` (un token de GitHub: `github_pat_…` o `ghp_…`) y opcional
 `forzar: 'si'`. Lo guarda como `GITHUB_TOKEN` en las propiedades del script si
 no había uno (o si se fuerza). Contesta `ok`, `puesto`, `yaEstaba`; nunca el token.
+
+**`HOJA_ID` en las propiedades** (0.17.0): `A0_instalar` la guarda; si la
+constante llega vacía (versión implementada de antes), el maestro la lee de ahí.
+La constante, si está, manda.
+
+**El Panel de tiendas escribe** (0.17.0, `panel.gs` › `doPost`, **solo POST**) —
+`{ a: 'registrar_tienda', clave, comercio, repo, sitio, producto, servicio,
+token }`. `clave` = `CLAVE_ALTA` de las propiedades de esa hoja (menú › *Clave
+para el alta*). Valida `repo` (`dueño/nombre`) y `servicio` (`/exec`). Si el
+repositorio ya está, cambia solo sitio, servicio, token (columnas 10–12) y
+producto (16); si no, agrega la fila *En montaje*. Contesta `ok`, `fila`,
+`nueva`. Acepta además `anillo` (0.20.1). La pestaña Tiendas suma al final las
+columnas **Producto** (0.17.0) y **Anillo** (0.20.1), en ese orden (R1).
+
+**El stub dice en qué hoja está pegado** (0.18.0): `?a=menu` lleva, además de
+`f`, `t` y `s`, la clave **`h`** — el ID de la hoja donde corre el stub. El
+maestro rechaza una `h` que no sea su `HOJA_ID` («Este código es de OTRA
+tienda»). Un stub anterior no manda `h` y sigue atendido (bitácora 76).
+
+**Volver atrás** (0.18.0): en el maestro, `listarRespaldos()` y
+`restaurarDatos(copia, 'Pestaña1,Pestaña2')` —`copia` acepta el número que
+imprime `A5_respaldos()`, el nombre, el ID, o vacío/`ultimo`—. Solo se
+restauran `Catálogo`, `Configuración`, `Envíos`, `Cupones` e `Inventario por
+variante`; deja antes una copia y anota en el `Registro`. El flujo
+**`restaurar`** (cada tienda) pide `que` (`el-sitio` | `la-version`), `hasta`
+(opcional) y `confirmar` = `RESTAURAR`; lo que decide vive en
+`montar/volver-atras.mjs`.
+
+**La columna Repositorio del panel** (0.18.1) se normaliza al leerla: se
+aceptan `dueño/nombre`, `https://github.com/dueño/nombre`, con `.git` o con
+barras finales; lo que no encaje se conserva como texto pero no genera enlaces.
+El repositorio de la flota sale del primer repositorio válido (`<dueño>/tiendas`)
+o de la propiedad `REPO_FLOTA` del panel.
+
+**`diagnostico`** (0.20.0, panel, **solo POST**, solo el dueño) — no pide nada
+más que el testigo. Contesta `ok`, `texto` (el informe completo, **sin el token
+de montaje**) y `resumen`: una lista de `{estado, n, titulo}` con `OK`,
+`REVISAR` o `PROBLEMA` por punto.
 
 **`semilla.json`** (raíz): `producto`, `linea`, `repositorio` (la semilla) y
 `propios` (rutas; las que acaban en `/` son carpetas). Lo leen

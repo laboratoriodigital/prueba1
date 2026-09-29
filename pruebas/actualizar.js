@@ -22,6 +22,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { execFileSync } = require('child_process');
+const { esSemilla: corroEnLaSemilla } = require('./donde.js');   // `esSemilla` ya es otra cosa más abajo
 const T = [];
 const ok = (n, c, d) => T.push((c ? '  OK  ' : ' FALLA') + ' | ' + n + (d ? '  -> ' + d : ''));
 const j = r => JSON.parse(r._texto);
@@ -58,8 +59,19 @@ function red(t, o) {
   ok('LA VERSIÓN DEL MAESTRO es la del package.json', (maestro.match(/var VERSION_TIENDA = '([^']+)'/) || [])[1] === paquete.version,
      (maestro.match(/var VERSION_TIENDA = '([^']+)'/) || [])[1] + ' / ' + paquete.version);
   ok('  ...y su semilla es la de semilla.json', (maestro.match(/var SEMILLA_REPO = '([^']+)'/) || [])[1] === semilla.repositorio);
+  /* 0.20.6 · UNA EXCEPCIÓN, Y EXPLÍCITA (bitácora 93). `publicar/` es lo que
+     hornea cada tienda desde SU hoja y por eso no se sincroniza… salvo
+     `publicar/_headers`, que no sale de la hoja de nadie: son las cabeceras y la
+     política de seguridad de Cloudflare, iguales en todas las tiendas. Al no
+     viajar, una tienda nacida en la 0.16 servía la CSP de la 0.16 para siempre —y
+     la aserción de las tres copias se caía dentro de ella, que es como se
+     descubrió. */
   ok('SEMILLA.JSON no se adueña de lo que es de cada tienda', !semilla.propios.some(p =>
-     p === 'publicar/' || p.startsWith('publicar/') || p === 'wrangler.jsonc' || p === 'README.md' || p === '.github/workflows/release.yml' || p === '.github/'));
+     p === 'publicar/' || (p.startsWith('publicar/') && p !== 'publicar/_headers') ||
+     p === 'wrangler.jsonc' || p === 'README.md' || p === '.github/workflows/release.yml' || p === '.github/'));
+  ok('  ...y las cabeceras, que son de la semilla y no de la hoja, sí viajan',
+     semilla.propios.includes('publicar/_headers'),
+     'sin esto, la política de seguridad de una tienda se queda en la versión en que nació');
   const faltan = semilla.propios.filter(p => !fs.existsSync(path.join('..', p)));
   ok('  ...y todo lo que nombra existe', faltan.length === 0, faltan.join(', '));
   ok('  ...y se nombra a sí mismo: le llega a la tienda con cada versión', semilla.propios.includes('semilla.json'));
@@ -158,13 +170,56 @@ function red(t, o) {
     ok('EN LA SEMILLA MISMA no se trae nada', esSemilla.o.cambio === 'no' && /ES la semilla/.test(esSemilla.log));
     const pedida = correr(tiendaDir, { VERSION: '9.9.9' });
     ok('UNA VERSIÓN QUE NO EXISTE no se inventa: falla y lo dice', /FALLÓ/.test(pedida.log) && /no tiene la versión v9\.9\.9/.test(pedida.log));
-    const { aplicar } = await import(path.resolve('../montar/semilla.mjs'));
+    const { aplicar, informeEnTexto } = await import(path.resolve('../montar/semilla.mjs'));
     const t2 = fs.mkdtempSync(path.join(os.tmpdir(), 'semilla-t2-'));
     escribir(t2, { '.github/workflows/montaje.yml': 'flujo 1', 'maestro.gs': 'm1' });
     const base = fs.mkdtempSync(path.join(os.tmpdir(), 'semilla-b-')); escribir(base, { '.github/workflows/montaje.yml': 'flujo 1', 'maestro.gs': 'm1' });
     const nueva = fs.mkdtempSync(path.join(os.tmpdir(), 'semilla-n-')); escribir(nueva, { '.github/workflows/montaje.yml': 'flujo 2', 'maestro.gs': 'm2' });
     const inf = aplicar({ tiendaDir: t2, nuevaDir: nueva, baseDir: base, propios: conf.propios, excluir: ['.github/workflows/'] });
-    ok('SIN PERMISO PARA FLUJOS, se trae lo demás y los flujos quedan pendientes, dichos',
+    /* 0.20.7 · LO QUE LA SEMILLA RETIRÓ, SE RETIRA (bitácora 94). Actualizar
+     escribía y nunca borraba: `servicio/` —el alta vieja, quitada en la 0.17—
+     seguía en toda tienda nacida antes, y hacía fallar dentro de ella la
+     batería que comprueba que esa alta no vuelva. Borrar es lo único que no se
+     deshace, así que la lista es explícita y acotada. */
+  {
+    const t5 = fs.mkdtempSync(path.join(os.tmpdir(), 'semilla-t5-'));
+    escribir(t5, { 'maestro.gs': 'm1', 'servicio/tienda-nueva.yml': 'el alta vieja',
+                   'publicar/index.html': 'MI TIENDA', '.git/HEAD': 'ref: main' });
+    const n5 = fs.mkdtempSync(path.join(os.tmpdir(), 'semilla-n5-')); escribir(n5, { 'maestro.gs': 'm2' });
+    const r5 = aplicar({ tiendaDir: t5, nuevaDir: n5, baseDir: null, propios: ['maestro.gs'],
+                         sinBase: 'sobrescribir',
+                         retirados: ['servicio', 'publicar', '../fuera', '.git', '/etc', ''] });
+    const hay = r => fs.existsSync(path.join(t5, r));
+    ok('LO QUE LA SEMILLA RETIRÓ se borra en la tienda, y se dice',
+       !hay('servicio') && r5.retirados.join() === 'servicio' &&
+       /Se retiró lo que la semilla ya no entrega/.test(informeEnTexto({ desde: '0.16.0', hasta: 'v9.9.9', informe: r5 })));
+    ok('  ...y lo que no se puede borrar no se borra: publicar/, .git, fuera de la tienda',
+       hay('publicar/index.html') && hay('.git/HEAD') &&
+       ['publicar', '../fuera', '.git', '/etc', ''].every(x => r5.noRetirados.indexOf(x) !== -1),
+       r5.noRetirados.join(' · '));
+    ok('  ...y retirar algo, aunque no se escriba nada más, ya es un cambio que se publica',
+       r5.cambia === true, 'si no, la tienda vuelve a arrastrarlo en la corrida siguiente');
+    /* 0.20.8 · SOLO EN LA SEMILLA (bitácora 95). Esta aserción pregunta si la
+       SEMILLA sigue entregando algo que dice haber retirado. Dentro de una
+       tienda la misma línea pregunta otra cosa —si la tienda todavía arrastra
+       el resto viejo— y la respuesta es que sí: lo arrastra hasta que la
+       actualización SIGUIENTE lo borre, porque la que corre es la herramienta
+       que la tienda ya tenía, no la que acaba de llegar. Escrita sin guarda,
+       bloqueaba justo la publicación que trae el arreglo: la regla de la
+       bitácora 93, rota por mí en la tanda siguiente. */
+    if (!corroEnLaSemilla()) {
+      console.log('  SALTA | «la semilla no retira nada que todavía entregue»: aquí eso');
+      console.log('          pregunta otra cosa. Lo que quede de una versión vieja lo borra');
+      console.log('          la actualización siguiente, con la herramienta que acaba de llegar.');
+    } else {
+      ok('  ...y la semilla no retira nada que todavía entregue',
+         (semilla.retirados || []).length > 0 &&
+         semilla.retirados.every(r => !fs.existsSync(path.join('..', r))),
+         (semilla.retirados || []).join(', '));
+    }
+  }
+
+  ok('SIN PERMISO PARA FLUJOS, se trae lo demás y los flujos quedan pendientes, dichos',
        fs.readFileSync(path.join(t2, 'maestro.gs'), 'utf8') === 'm2' && fs.readFileSync(path.join(t2, '.github/workflows/montaje.yml'), 'utf8') === 'flujo 1' &&
        inf.pendientes.includes('.github/workflows/montaje.yml'));
   }
@@ -183,9 +238,47 @@ function red(t, o) {
   ok('  ...y si algo falla después de publicar el maestro, vuelve al de antes', i('Volver atrás el maestro') > i('Publicar en main') &&
      /if: failure\(\) && steps\.publicado\.outcome == 'success' && steps\.semilla\.outputs\.maestro == 'si'/.test(flujo) &&
      /git show "\$\{\{ github\.sha \}\}:maestro\.gs" > maestro\.gs/.test(flujo));
-  ok('  ...y con SEMILLA_TOKEN puede empujar flujos', /token: \$\{\{ secrets\.SEMILLA_TOKEN \|\| github\.token \}\}/.test(flujo));
+  /* 0.20.5 · EL PERMISO DE LA SEMILLA, DONDE DE VERDAD HACE FALTA (bitácora 92).
+     Aquí se exigía lo contrario: que el `checkout` se hiciera con
+     `secrets.SEMILLA_TOKEN || github.token`, para que el empujón final pudiera
+     llevar flujos. Un permiso de grano fino acotado a la semilla —lo normal—
+     hace que ESE primer paso muera con 403 y que la tienda no pueda ni bajarse
+     a sí misma: la corrida entera se salta y el único error visible es el del
+     cronómetro, que no tiene nada que ver. Se baja con el permiso propio, se
+     pregunta si el de la semilla alcanza, y se usa al empujar. */
+  ok('  ...y el CHECKOUT se hace con el permiso propio de la tienda, no con el de la semilla',
+     !/- uses: actions\/checkout[\s\S]{0,200}?token: \$\{\{ secrets\./.test(flujo),
+     'un permiso que no alcanza tumbaba el primer paso y con él la corrida entera');
+  ok('  ...se PREGUNTA si el permiso de la semilla alcanza a esta tienda, antes de contar con él',
+     /id: permiso/.test(flujo) && /api\.github\.com\/repos\/\$GITHUB_REPOSITORY/.test(flujo) &&
+     /flujos=\$flujos" >> "\$GITHUB_OUTPUT"/.test(flujo));
+  ok('  ...y si no alcanza, dice qué ampliar en vez de dejar un 403 suelto',
+     /Repository access/.test(flujo) && /Workflows/.test(flujo) && /Read and write/.test(flujo));
+  ok('  ...la respuesta viaja a la herramienta, que solo escribe flujos si se pueden empujar',
+     /FLUJOS: \$\{\{ steps\.permiso\.outputs\.flujos \}\}/.test(flujo) &&
+     /excluir: puedeFlujos\(\)/.test(fs.readFileSync('../montar/actualizar-semilla.mjs', 'utf8')));
+  ok('  ...y el empujón usa el de la semilla cuando sirve, y el propio cuando no',
+     /empujar\(\) \{/.test(flujo) && /x-access-token:\$\{SEMILLA_TOKEN\}/.test(flujo) &&
+     /git push --quiet origin "HEAD:\$1"/.test(flujo) &&
+     !/git push (--quiet )?(-u )?origin HEAD:(main|"\$rama")/.test(flujo),
+     'un permiso corto deja los flujos atrás; no puede dejar la tienda sin publicar');
 
-  await enLaPagina();
+  {
+    const { puedeFlujos } = await import(path.resolve('../montar/actualizar-semilla.mjs'));
+    ok('PUEDE-FLUJOS: manda lo que contestó GitHub, y si nadie preguntó, que el permiso exista',
+       puedeFlujos({}) === false && puedeFlujos({ SEMILLA_TOKEN: 'x' }) === true &&
+       puedeFlujos({ SEMILLA_TOKEN: 'x', FLUJOS: 'no' }) === false && puedeFlujos({ FLUJOS: 'si' }) === true);
+  }
+
+  /* La parte de navegador necesita el servidor que le levanta `todas.sh`. La
+     tiendita (bitácora 95) corre esta batería por los archivos, sin servidor:
+     se salta diciéndolo, que es mejor que una batería que se cae por el motivo
+     equivocado. */
+  if (process.env.SIN_NAVEGADOR) {
+    console.log('  SALTA | la parte de navegador: esta corrida es por los archivos (la tiendita).');
+  } else {
+    await enLaPagina();
+  }
   console.log(T.join('\n'));
   console.log('\nResultado: ' + T.filter(x => x.startsWith('  OK')).length + '/' + T.length);
   process.exit(T.every(x => x.startsWith('  OK')) ? 0 : 1);

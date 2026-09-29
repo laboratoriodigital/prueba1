@@ -10,6 +10,9 @@
   "name": "prueba1",
   "compatibility_date": "2026-09-05",
 
+  // DOMINIO PROPIO (4.5) — lo escribe montar/nombrar-worker.mjs desde sitio_url; no lo edites a mano.
+  "routes": [{ "pattern": "prueba1.laboratorio-digital.com", "custom_domain": true }],
+
   // DOMINIO PROPIO (4.5) — lo escribe montar/nombrar-worker.mjs desde sitio_url; no lo edites a mano.,
 
   "assets": {

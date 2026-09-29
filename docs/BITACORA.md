@@ -1929,3 +1929,378 @@ lo elegido de verdad pasa: una zona sin *Transformations* activado deja la
 tienda viéndose igual, sin el ahorro, y nadie se entera. Montaje y Publicar
 ahora lo preguntan con una foto del catálogo y lo dicen, sin tumbar nada.
 **Lo prueba** `fotoscdn.js` (8).
+
+**74 · «Falta HOJA_ID» en `conectar`, con el diagnóstico diciendo que sí.** El
+primer `conectar` de verdad paró ahí, y el dueño tenía razón en extrañarse: el
+diagnóstico abría la hoja. Los dos tenían razón. El editor y
+`diagnosticoCompleto` corren el código de la cabeza; la aplicación web corre la
+**versión implementada**, y esa era de antes de pegar `HOJA_ID`. El orden de
+DESPLIEGUE lo invitaba: implementar (paso 5) antes de instalar (paso 7). Desde
+la 0.17.0 `A0_instalar` guarda `HOJA_ID` también en las propiedades del script
+—que son de todas las versiones— y el maestro las lee si la constante llega
+vacía; el mensaje dice las dos salidas, y `conectar` también. La tienda que ya
+existe necesita una sola vez *Implementar › Gestionar implementaciones › lápiz
+› Nueva versión*. **Lo prueba** `hojaid.js` (5).
+
+**75 · La hoja de administración de tiendas se llena sola.** La hoja «Panel de
+tiendas» era el registro del negocio, pero cada tienda había que pegarla a mano
+con su servicio y su token: lo mismo que `conectar` ya sabía. Ahora la hoja
+tiene una puerta de escritura (`doPost` · `registrar_tienda`) con su propia
+clave (menú › *Clave para el alta*, guardada en sus propiedades) y `conectar`
+le deja la fila si tiendas tiene `PANEL_URL` y `PANEL_CLAVE`. Una tienda que ya
+estaba solo actualiza servicio, token, sitio y producto: contacto, plan,
+precio y notas son del operador y no se tocan. La columna *Producto* va al
+final (R1). Y la hoja tomó el mismo lenguaje que los dos paneles: tinta, un
+verde, un rojo, un ámbar, sin cuadrícula. Del flujo `alta` se fue
+`tienda-nueva.yml`, el formulario viejo con los campos que ya no se usan.
+**Lo prueban** `paneltiendas.js` (8) y 75 aserciones de la flota.
+
+**76 · El stub de la tienda equivocada.** El dueño contó que el menú de la hoja
+nueva solo le funcionó cuando pegó el stub «desde tienda» y no desde el
+repositorio clonado. Funcionaba, sí, y era el peor de los dos resultados: un
+stub generado por el maestro de OTRA tienda lleva la URL y el token de esa
+otra, así que el menú aparece, contesta y administra —publica el catálogo, lee
+los pedidos— de la tienda de al lado. El token no puede cazar esto: es el token
+correcto del maestro equivocado. Lo que sí distingue una hoja de otra es su
+ID, y el stub está pegado DENTRO de la hoja, así que ahora lo manda en cada
+petición y el maestro rechaza lo que no es suyo, diciendo qué hacer. Un stub
+anterior no manda nada y sigue funcionando: no se dejan tiendas sin menú por
+una comprobación nueva. **Lo prueban** 5 aserciones de `menu.js`.
+
+**77 · Volver atrás, que no existía.** Había copias semanales de la hoja, había
+etiquetas de cada versión y había un commit por publicación: tres puntos de
+restauración completos, y ninguna manera de volver a ellos que no fuera pegar
+celdas a mano o editar archivos en GitHub. El modelo, entero, son esas tres
+cosas con una puerta cada una: los datos, desde el editor del maestro
+(`A5_respaldos` los lista, `A6_restaurarDatos` devuelve pestañas sueltas); el
+sitio y la versión, desde el flujo `restaurar` de cada tienda. Tres decisiones
+lo sostienen. Restaurar **no borra**: el sitio vuelve en un commit NUEVO
+encima, nunca con un `push --force`, así que restaurar también se puede
+deshacer. Restaurar **no puede traer lo que pasó**: Pedidos, Pagos, Datos de
+entrega y el Registro no están en la lista, porque traer el domingo un
+miércoles borra las ventas del lunes para arreglar un catálogo. Y antes de
+tocar nada se guarda una copia, porque restaurar mal también es perder. La
+única pieza nueva fue una línea en `actualizar-semilla.mjs`: pedir una versión
+exacta ahora permite bajar, porque negarse ahí dejaba una tienda rota sin más
+salida que editarle los archivos. **Lo prueba** `restaurar.js` (21).
+
+**78 · «Aún no veo por dónde acceder».** El panel de tiendas eran tres pestañas
+y las acciones vivían en la pestaña Actions de otro repositorio: para mirar una
+tienda había que saber en qué columna estaba cada cosa, y para actuar, en qué
+flujo. El portal es una pantalla —menú de la hoja › **Abrir el portal**— con
+cada tienda, sus cifras y sus enlaces: ver la tienda, su panel, su repositorio,
+publicar, volver atrás; y arriba, alta, conectar y actualizar la flota. Se
+abre desde la hoja a propósito: no hay nada que desplegar ni que proteger,
+porque quien puede abrir la hoja ya es quien puede ver esto. Y abrirlo no
+consulta a ninguna tienda: pinta lo de la última actualización, que es lo que
+evita que mirar cueste ejecuciones de Apps Script. **Lo prueban** 7 aserciones
+de `paneltiendas.js`.
+
+**79 · Los botones del portal llevaban a ninguna parte.** El portal saca el
+dueño de la flota de la columna *Repositorio* de la pestaña Tiendas, y ahí cabe
+lo que uno pega del navegador: `https://github.com/dueño/tienda`. Partido por
+la barra, el «dueño» era `https:` y los botones apuntaban a
+`github.com/https:/tiendas/actions/…`. `conectar` escribe la forma corta, así
+que esto solo se ve en las filas puestas a mano — que son justo las primeras.
+Se arregla donde se lee, no donde se usa: `leerTiendas` normaliza el
+repositorio (quita el `https://github.com/`, el `.git`, las barras de más) y lo
+que no tenga forma de `dueño/nombre` deja de ser un repositorio: el portal lo
+dice en ámbar en vez de fabricar un enlace roto. La fila de ejemplo que deja
+`instalar` tampoco sale ya en el portal, porque su repositorio es
+`laboratoriodigital/[repositorio]`. Y si la flota no se llama `tiendas`, se
+fija en las propiedades del panel (`REPO_FLOTA`). **Lo prueban** 5 aserciones
+de `paneltiendas.js`.
+
+**81 · Medir sin quedar atados (decisión 23).** Faltaba lo obvio: nadie sabía
+cuánta gente entra a una tienda. Se pedía «lo más sencillo posible», y lo más
+sencillo es también lo que menos compromete: una clave en la hoja
+—`analytics_id`— y el fragmento oficial de GA4 horneado en el `<head>`. Vacío
+es el valor de fábrica y significa exactamente nada: sin script, sin cookies,
+sin conexiones, y la política de seguridad de esa tienda ni nombra a Google.
+Lo que costó pensar fue la otra mitad del encargo —no cerrarle la puerta al
+medidor propio—: la página no llama a `gtag` por ahí suelto, llama a
+`medir(evento, datos)`, que hoy se lo pasa a Google, no revienta nunca y no
+mide la vista previa. Los tres puntos de medida ya están puestos (agregar al
+carrito, enviar pedido, pagar en línea), así que el medidor propio será una
+línea dentro de esa función y no una vuelta por todas las pantallas. Y la
+trampa que casi se cuela: `_headers` es igual en todas las tiendas y se aplica
+a la vez que el `<meta>`, mandando la más restrictiva — si no nombrara a
+Google, la tienda que sí mide mediría cero sin un solo error visible, que es
+exactamente lo que ya pasó una vez con `connect-src` y el catálogo. **Lo
+prueba** `medicion.js` (14).
+
+**82 · Tres documentos que faltaban, y el guardia que los mantiene vivos.** El
+dueño pidió tres cosas: un runbook para el técnico que despliega, la lista
+completa de lo que hace el producto, y la radiografía de la arquitectura «sin
+suponer nada, con los secretos, dónde se crean y cómo se renuevan». Escribirlos
+es media tarde; que sigan siendo ciertos dentro de tres versiones es el
+problema de verdad —es el patrón 2 aplicado a la documentación, y ya nos costó
+cuatro documentos borrados en la 3.0.0—. Así que los tres nacen con guardia:
+cada `secrets.X` de cualquier flujo y cada propiedad que el maestro o el panel
+tocan **tienen que estar nombradas** en `ARQUITECTURA.md`; el runbook solo
+puede mandar ejecutar funciones que existen y nombrar flujos que existen; y la
+lista de funcionalidades no puede dejarse fuera una opción del menú. Los tres
+guardias se verificaron en rojo antes de darlos por buenos. **Lo prueban** 9
+aserciones de `montaje.js`.
+
+**83 · «Ver la tienda» llevaba al dominio de antes.** La columna *Sitio* de la
+hoja de administración la escribió `conectar` el día del alta, con la dirección
+que entonces existía; cuando la tienda se mudó a su dominio propio, esa celda
+se quedó con la vieja y el botón del portal llevaba allí. El dato estaba en dos
+sitios y uno se quedó atrás: patrón 2, otra vez. La dirección la sabe la
+tienda —es su `sitio_url`, la misma con la que se hornea el canónico—, así que
+ahora el portal enseña la que dice la tienda y `actualizar` copia esa dirección
+a la fila y lo anota en la bitácora. Si la tienda no contesta, se usa la de la
+fila: quedarse sin enlace es peor que un enlace viejo. **Lo prueban** 6
+aserciones de `paneltiendas.js`.
+
+**84 · El acabado, y tres peticiones que sobraban.** Para salir al aire se
+pidió un aire más moderno «sin sacrificar velocidad ni simplicidad». Lo primero
+que se fue, entonces, fue la tipografía de Google: dos `preconnect` y una hoja
+de estilos de fuera antes de pintar una sola letra, en una tienda que presume
+de no depender de nadie. Con la pila del sistema la página no espera a nada y
+el carácter lo dan el peso, el interletrado y la escala. Lo demás es una capa
+de acabado **al final de la hoja de estilos**, que no toca un id ni una clase
+—el mismo procedimiento del panel en la 0.15.0, y por la misma razón: un
+rediseño que mueve el HTML hay que volver a probarlo entero—: esquinas de 10px,
+botones en píldora, líneas más claras, una sombra mínima en las tarjetas,
+cifras tabulares en los precios y una respuesta de 120 ms al pasar y al pulsar.
+Y, ya que no se cargan tipografías, la política de seguridad dejó de permitirlas
+en sus tres copias: un permiso que sobra es una puerta abierta sin nadie detrás.
+
+**85 · El diagnóstico donde trabaja el comercio.** El informe existía desde
+siempre y vivía solo en el menú de la hoja; el comerciante que trabaja en el
+panel no abre la hoja, así que llamaba para preguntar por qué su tienda «se
+veía rara». Ahora está en el panel —*Revisión de tu tienda*, sin secretos y solo
+para el dueño—, y de paso aprendió lo que las últimas versiones le enseñaron a
+mirar: si el `HOJA_ID` vino de las propiedades (la versión implementada puede
+ser anterior), qué versión del stub está pegada en la hoja, si el maestro tiene
+su permiso de GitHub —sin él, Publicar y Actualizar no disparan nada—, si la
+medición está encendida y bien escrita, y si de verdad se puede volver atrás:
+cuántas copias hay y de cuándo es la última. Se pide a demanda, porque mirar no
+puede costar una ejecución en cada visita.
+
+**86 · El panel de la flota, publicado sin manos.** Se podía conectar el
+repositorio en Cloudflare y esperar a que publicara solo, pero eso depende de
+que alguien lo haya conectado. Con `CLOUDFLARE_API_TOKEN` y
+`CLOUDFLARE_ACCOUNT_ID` en `tiendas`, el propio flujo `flota` › estado publica
+`panel/` como Worker de recursos estáticos después de escribirlo. Sin esos dos
+secretos no falla: lo dice en el resumen y sigue, porque un panel sin publicar
+no es una avería. Lo que falta para dejarlo a la vista de verdad es ponerle
+Cloudflare Access delante, que está explicado en `DESPLIEGUE.md`.
+
+**87 · Dos mensajes que mandaban a mirar donde no era.** El primer intento de
+actualizar `prueba1` desde la flota contestó «Ninguna tienda de esta línea en
+esos anillos», y la tienda estaba en `flota.json`, en la línea correcta y en el
+anillo 2. Lo que pasaba es que el campo *solo esta tienda* pide
+`dueño/repositorio` y se escribió `prueba1`, que es como se llama la tienda en
+todas las demás pantallas; al no encajar ninguna, el flujo daba la frase de «no
+hay tiendas en esos anillos», que manda a revisar los anillos —lo único que
+estaba bien—. Ahora se acepta el nombre corto y, cuando lo pedido no existe, se
+dice eso, con la lista de las que sí hay y su anillo. El segundo fue peor,
+porque el mensaje era correcto y aun así engañaba: pedir la actualización desde
+el panel contestaba «No encuentro el repositorio laboratoriodigital/prueba1, o
+el permiso no lo incluye». GitHub contesta **404 y no 403** cuando un token de
+grano fino no alcanza un repositorio —no confirma que exista—, así que el
+maestro no puede distinguir los dos casos; pero sí se puede decir cuál es el
+probable: un `DISPARO_TOKEN` hecho sobre «Only select repositories» no incluye
+las tiendas que nacieron después, y el alta crea una tienda nueva cada vez. El
+mensaje ahora lo explica y, mejor todavía, `conectar` lo comprueba **antes** de
+sembrar el permiso: pregunta con ese mismo token si ve el repositorio y lo dice
+en el resumen. **Lo prueban** 4 aserciones de la flota.
+
+**88 · El anillo, donde se mira.** «¿Cómo sé a qué anillo pertenece cada
+tienda?» — estaba en `flota.json`, un archivo de un repositorio privado, y en
+el panel estático de la flota. Quien opera mira el portal, así que ahora el
+anillo viaja con el registro que manda `conectar` y vive en su propia columna
+de la pestaña Tiendas —al final, R1—, con su chip en el portal. El dato sigue
+decidiéndose en `flota.json`: esto es una copia para mirar, y se reescribe cada
+vez que `conectar` pasa por ahí.
+
+**89 · Rotar el token no arreglaba nada.** Se cambió `DISPARO_TOKEN` por uno
+nuevo, se volvió a correr `conectar`… y la tienda siguió diciendo lo mismo,
+ahora con 401: «el permiso no sirve o se venció». La causa era una regla
+nuestra, escrita con buena intención: el maestro **no pisa un permiso ya
+puesto**, para no quitarle a una tienda un token más acotado que alguien puso a
+mano. Con esa regla, el único camino para cambiarlo era una casilla de forzar
+que nadie sabía que existía, y el síntoma sobrevivía a la cura. La corrección
+es medir en vez de suponer: antes de respetar el token guardado, el maestro le
+pregunta a GitHub por el repositorio de ESTA tienda con ese mismo token; si
+contesta, se respeta; si no —401, 403, 404 o silencio—, el que llega lo
+reemplaza y queda anotado por qué. Un token que no abre la puerta no es un
+token que haya que cuidar. Queda además la casilla `forzar_permiso` en
+`conectar` para el caso contrario: cambiarlo aunque el actual sirva. **Lo
+prueban** `permiso.js` (11) y 1 aserción de la flota.
+
+**90 · El cronómetro tumbó el montaje.** La tienda de prueba publicó bien y la
+corrida terminó en rojo: `Cannot find module montar/tiempos.mjs`. Ese archivo
+mide cuánto tardó cada paso —es un servicio, no el trabajo—, y ese repositorio
+no lo tenía. Lo que enseña el fallo no es dónde quedó el archivo, sino tres
+huecos de diseño: un flujo puede llamar a una herramienta que ESE repositorio
+no trae, y Node se cae sin decir que lo que falta es el cronómetro; una
+herramienta ignorada por git viviría en la semilla y no llegaría nunca a
+ninguna tienda, y nadie lo notaría hasta semanas después, en el repositorio de
+otro; y el alta entrega la tienda sin comprobar que trae lo que sus propios
+flujos ejecutan. Los tres se cerraron: el paso de los tiempos comprueba que el
+archivo esté y, si no, lo dice en el resumen y sigue; una batería exige que
+todo `node montar/x.mjs` de cualquier flujo exista **y esté versionado**; y el
+alta se planta antes de entregar si la etiqueta que clonó no trae alguna. La
+tienda que ya está se cura sola en la próxima actualización, que es la que le
+lleva el archivo. **Lo prueban** 3 aserciones de `montaje.js` y 2 de la flota.
+
+**91 · La prueba que solo era verdad hasta el día 28, y el resumen que no decía
+de qué corrida era.** Las baterías se cayeron en Actions sin que nadie hubiera
+tocado una línea: 2439 de 2440, y la que faltaba era la de los cobros del panel.
+Sembraba dos tiendas —una que cobra el día 1 y otra el 28— y exigía que
+**exactamente una** estuviera vencida. Eso es cierto del 2 al 28 de cada mes; el
+29 las dos lo están, y el día 1 ninguna. La aserción no probaba la regla, probaba
+la regla *y* el calendario del día en que se escribió. El producto estaba bien:
+`cobrosDelMes()` marca vencido lo que tiene el día de cobro antes que hoy, y eso
+no dependía de nada. Ahora los días se siembran relativos a hoy —el de ayer
+vencido, el de hoy no— y, lo que importa más, `panel.js` entró en la máquina que
+ya existía para esto: `calendario.js` la corre con el reloj falseado en diez días
+de dos meses, entre ellos el 1, el 28 y los que solo existen en los meses largos.
+La herramienta llevaba dos versiones cazando esta clase de fallo en el tablero y
+en el correo; la batería que dependía del día estaba justo al lado, fuera de la
+lista.
+
+Aprovechando el viaje se revisaron los resúmenes de los **ocho** flujos de los
+dos repositorios, que es lo único que lee quien no escribió el flujo. Tenían tres
+defectos del mismo tipo. No decían **qué eran**: la página empezaba por el
+volcado de la tercera herramienta, sin decir de qué tienda era la corrida, en qué
+versión estaba, qué se había pedido ni quién lo había pedido. No decían **cómo
+quedó la cosa**: «Publicado en `main`» solo aparecía si el paso de publicar
+llegaba a correr, así que una corrida roja terminaba sin una sola frase sobre si
+la tienda estaba tocada o no. Y **repetían**: el marcador de las baterías salía
+tres veces en la misma pantalla —el TOTAL, la lista de baterías con problemas y
+cada línea de FALLA—, que es la otra manera de no decir nada. Los ocho abren
+ahora con la misma ficha (qué es esto, sobre qué, cómo está antes de tocar nada,
+qué se pidió, quién lo pidió), `montaje` y `fotos` cierran diciendo en qué estado
+queda la tienda pase lo que pase, el marcador se dice una vez y en rojo enseña
+solo lo roto, y los volcados de cada herramienta quedan plegados a un clic. De
+paso apareció un hueco de la 0.20.3: la tolerancia a que falte el cronómetro
+estaba en `montaje` y no en `fotos`, que es el que corre todos los días en todas
+las tiendas — la misma caída esperando en el flujo de al lado. **Lo prueban** 2
+aserciones nuevas de `panel.js` y 1 de `calendario.js`, 5 de `montaje.js` y 4 de
+la flota; y las tres que vigilan la forma del resumen se vieron en rojo antes de
+darlas por buenas.
+
+**92 · El permiso de la semilla tumbó el primer paso, y el error que se veía era
+otro.** La tienda de prueba no conseguía actualizarse: cada montaje terminaba en
+rojo con `Cannot find module montar/tiempos.mjs`, el fallo de la bitácora 90, que
+ya estaba arreglado. No era eso. Arriba del todo, fuera de la pantalla, el
+`checkout` moría con **403 · Write access to repository not granted**: TODOS los
+pasos siguientes quedaban saltados y el único que llegaba a correr era el del
+cronómetro, que lleva `always()` y se caía por un archivo que la actualización
+—la que nunca llegó a correr— era justo la encargada de traer. El error visible
+era el síntoma del síntoma.
+
+La causa: `montaje` se bajaba el repositorio con `SEMILLA_TOKEN || github.token`.
+Ese permiso se copia a cada tienda para poder empujar sus `.github/workflows`, que
+el `GITHUB_TOKEN` de Actions no puede escribir nunca; pero es de grano fino y el
+de esta flota estaba acotado a la semilla. Un permiso pensado para UNA cosa
+—empujar flujos— colgado del paso del que cuelga todo lo demás: si no alcanza,
+la tienda no puede ni bajarse a sí misma, y encima no puede recibir el arreglo,
+porque el arreglo viaja dentro de la actualización que no corre.
+
+Tres cambios. El `checkout` vuelve al permiso propio de la tienda, que siempre
+alcanza. El flujo PREGUNTA una vez si el de la semilla llega hasta aquí
+(`GET /repos/…`) y, si no, lo dice en el resumen con lo que hay que ampliar
+—*Repository access*, *Contents* y *Workflows* en escritura— en vez de dejar un
+403 suelto. Y el empujón elige: con el de la semilla cuando sirve, con el propio
+cuando no, así que un permiso corto deja los flujos una versión atrás pero no
+deja la tienda sin publicar lo demás. La lección es la de siempre, en su versión
+más cara: **un permiso opcional no puede estar en el camino crítico**, y un paso
+que corre `always()` después de un desastre cuenta su propia pena, no la del
+desastre. **Lo prueban** 6 aserciones de `actualizar.js` y 1 de `montaje.js`,
+todas vistas en rojo antes de darlas por buenas.
+
+**93 · La suite daba por hecho que corría en la semilla.** Con el permiso ya
+arreglado, la primera tienda se actualizó de verdad —0.16.0 → 0.20.4, 28
+archivos sobrescritos y 8 nuevos— y entonces se cayó en el paso siguiente: cinco
+baterías en rojo dentro de la tienda, y sin ese verde no se publica. Ninguna de
+las cinco estaba mirando un fallo del producto. `montaje.js` abría
+`.github/workflows/release.yml`, que `alta` no le hereda a ninguna tienda porque
+una tienda no corta versiones: ENOENT, batería entera caída y de paso
+`calendario.js`, que la corre con el reloj falseado. `exif.js` pedía
+`chonto-1.jpg`, una foto de muestra que tampoco se hereda. El control negativo de
+`respaldo.js` exigía encontrar palabras del comercio de la plantilla en
+`publicar/index.html`, que en una tienda es la tienda del comercio: se caía por
+tener razón. Y `medicion.js` comparaba las tres copias de la política de
+seguridad contra un `publicar/_headers` de la 0.16, porque ese archivo no viajaba
+nunca.
+
+Lo que enseña es una asimetría que no habíamos escrito: **estas baterías corren en
+dos sitios** —aquí, y dentro de cada tienda antes de publicar— y estaban escritas
+mirando solo uno. Una aserción cierta aquí y falsa allá no protege: bloquea. Y el
+motivo que queda escrito en el resumen de la tienda es «batería en rojo», que no
+es el motivo. Ahora lo que depende de SER la semilla se comprueba solo aquí y en
+una tienda se salta diciéndolo (patrón 8, regla 2); la foto del manifiesto sale de
+la carpeta y no de una lista escrita a mano; el control negativo del respaldo
+escribe un TERCER comercio en el mismo archivo, así que no depende de qué
+repositorio sea; `publicar/_headers` pasa a ser de la semilla —la única excepción
+dentro de `publicar/`, y dicha— para que la política de seguridad deje de
+quedarse en la versión en que nació la tienda; y una aserción nueva recorre las
+baterías y exige que nadie abra a ciegas un archivo que una tienda no tiene.
+**Lo prueban** 3 aserciones nuevas de `montaje.js` y 1 de `actualizar.js`, más una
+tienda de juguete —sin lo que `alta` no hereda— donde la suite se corrió entera
+antes de dar esto por bueno.
+
+**94 · Actualizar escribía y nunca borraba.** Con las baterías ya arregladas, la
+tienda de prueba llegó más lejos y se paró en una sola aserción: «el alta vieja no
+existe». Y tenía razón: ahí estaba `servicio/`, el flujo de alta que la semilla
+retiró en la 0.17.0, vivo dentro de una tienda nacida en la 0.16. La razón es que
+la actualización solo sabía escribir: recorre los archivos de la versión NUEVA y
+decide cuál copiar, así que lo que la semilla quitó no se quita en ninguna
+parte — vive para siempre en cada tienda anterior. Casi siempre eso es basura
+inofensiva; esta vez era basura que hacía fallar una batería DENTRO de la tienda
+y, con ella, la publicación entera.
+
+Ahora la versión nueva declara en su `semilla.json` qué retira, y la
+actualización lo borra allá y lo dice en el resumen. La lista viaja con la
+semilla y no con la tienda —una regla, un sitio— y va acotada, porque borrar es
+lo único que no se puede deshacer: rutas relativas de dentro de la tienda, sin
+`..`, sin raíz absoluta, y nunca `publicar/` —lo que el comercio publica— ni
+`.git`. Lo que no encaja no se toca y sale nombrado en el informe. Un detalle que
+importa: retirar algo cuenta como cambio aunque no se escriba ningún archivo, o
+la tienda volvería a arrastrarlo en la corrida siguiente. Y una aserción cierra
+el círculo: la semilla no puede retirar nada que todavía entregue. **Lo prueban**
+4 aserciones de `actualizar.js`, con el control negativo —dejar borrar
+`publicar/`— visto en rojo.
+
+**95 · Rompí sola la regla que acababa de escribir, y por eso ahora hay una
+tiendita.** Tercera corrida seguida de la misma tanda, tercer rojo del mismo
+tipo: una aserción cierta aquí y falsa dentro de la tienda. Esta vez la había
+escrito yo en la entrada anterior —«la semilla no retira nada que todavía
+entregue»—, que dentro de una tienda pregunta otra cosa: si esa tienda todavía
+arrastra el resto viejo. Y sí lo arrastra, porque la actualización que borra lo
+retirado es la que acaba de llegar, no la que corrió: **el que se actualiza a sí
+mismo siempre ejecuta la versión anterior de sí mismo**, así que la limpieza
+llega una versión más tarde. Escrita sin guarda, esa aserción bloqueaba justo la
+publicación que lleva el arreglo. Lo mismo pasaba con «el alta vieja no existe»,
+que también habla de la semilla.
+
+Las dos se guardaron, pero lo que importa no es eso. La regla ya estaba escrita
+—bitácora 93, con su aserción y todo— y aun así se rompió dos entradas después,
+lo que quiere decir que no bastaba con escribirla. Ahora hay quien la vigile:
+`pruebas/tiendita.js` arma una copia de este repositorio SIN lo que `alta` no
+hereda, le mete de propina un resto de una versión vieja —lo que se encontró en
+la primera tienda de verdad— y corre ahí las baterías que leen archivos del
+repositorio. Tarda tres segundos y reproduce en el equipo lo que antes solo se
+veía en la tienda de un cliente, veinte minutos y un montaje después. La primera
+vez que se corrió encontró exactamente los dos rojos que la tienda estaba
+enseñando en ese momento. **Lo prueban** ella misma, sus cinco aserciones, y las
+dos guardas que la hicieron falta.
+
+**80 · La documentación que se quedó en el camino viejo.** El mapa de
+despliegue seguía diciendo que el camino corto «todavía no ha corrido de punta
+a punta en una tienda de verdad» —ya había montado dos— y presentaba los
+dieciséis pasos manuales como el procedimiento de referencia; el roadmap tenía
+en PENSADO o SIGUIENTE cosas hechas hacía dos versiones (3.3, 5.1), un número
+3.10 repetido y los puntos de la fase 3 en desorden. Es el patrón 2 otra vez,
+en documentación: la que no se actualiza en el mismo movimiento que el código
+no miente enseguida, miente después. Ahora `DESPLIEGUE.md` abre con el camino
+normal —qué hace `alta`, qué es de Google, qué hace `conectar`, y qué queda
+corriendo solo después—, los pasos numerados están marcados con ⚙ cuando los
+hace un flujo, y el roadmap dice al principio de la fase 3 qué está hecho y qué
+sigue, en orden.

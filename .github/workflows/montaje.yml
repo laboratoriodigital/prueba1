@@ -111,17 +111,65 @@ jobs:
     # Con la semilla corren TODAS las baterías: más tiempo, a propósito.
     timeout-minutes: ${{ inputs.semilla && 50 || 30 }}
     steps:
+      # 0.20.5 · EL CHECKOUT SE HACE CON EL PERMISO PROPIO DE LA TIENDA
+      # (bitácora 92). Aquí decía `token: secrets.SEMILLA_TOKEN || github.token`
+      # para que el empujón final pudiera llevar flujos, que el GITHUB_TOKEN no
+      # puede escribir nunca. El problema es lo que pasa cuando ese permiso NO
+      # alcanza a esta tienda: el primer paso de todos muere con «403 · Write
+      # access to repository not granted», la corrida entera se salta y lo único
+      # que se ve al final es el error del cronómetro, que no tiene nada que ver.
+      # Pasó en una tienda con un permiso acotado a la semilla.
+      #
+      # El permiso de la semilla sirve para DOS cosas —leer la semilla privada y
+      # empujar flujos— y ninguna de las dos justifica que, si no alcanza, la
+      # tienda no pueda ni bajarse a sí misma. Se comprueba abajo, y se usa
+      # donde de verdad hace falta: al empujar.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 50
-          # 0.14.0 · Con SEMILLA_TOKEN el empujón final puede llevar flujos
-          # (.github/workflows), que el GITHUB_TOKEN no puede escribir nunca.
-          # Sin él, todo sigue igual y la semilla deja los flujos pendientes.
-          token: ${{ secrets.SEMILLA_TOKEN || github.token }}
 
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+
+      # ── LA FICHA DE LA CORRIDA (0.20.4 · bitácora 91) ─────────────────────
+      # LO PRIMERO QUE SE LEE, EN TODOS LOS FLUJOS: qué es esta corrida, sobre
+      # qué tienda, cómo está ANTES de tocar nada y qué se le pidió. Sin esto un
+      # resumen empieza por el volcado de la tercera herramienta y hay que
+      # deducir de qué tienda es y por qué corrió.
+      #
+      # LA ESCRIBE EL FLUJO, CON LO QUE YA TIENE A MANO. No hay herramienta
+      # nueva a propósito: una tienda que nació de una versión anterior no la
+      # tendría y el flujo se caería por faltarle un archivo (bitácora 90).
+      #
+      # Y LO QUE DICE AQUÍ NO SE REPITE ABAJO: la versión, el repositorio y lo
+      # que se pidió se dicen UNA vez (patrón 2); los pasos de abajo solo añaden
+      # lo que averiguan, y el cierre dice cómo quedó.
+      - name: Qué es esta corrida
+        run: |
+          v=$(node -p "require('./package.json').version" 2>/dev/null || echo '?')
+          n=$(node -p "require('./package.json').name"    2>/dev/null || echo "${GITHUB_REPOSITORY#*/}")
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+            pedido='la revisión de los lunes: todo lo que haya cambiado'
+          else
+            pedido='`${{ inputs.que }}`'
+            [ "${{ inputs.semilla }}" = "true" ] && pedido="$pedido · **semilla** ${{ inputs.version }}"
+            [ "${{ inputs.maestro }}" = "true" ] && pedido="$pedido · **maestro**"
+            pedido="$pedido · publicar: ${{ inputs.aprobacion }}"
+          fi
+          {
+            echo "## Montaje de $n"
+            echo ""
+            echo "Trae de la hoja y del Drive lo que cambió el comercio, lo hornea en \`publicar/\`,"
+            echo "corre las baterías sobre lo horneado y publica. Si algo falla, no publica nada."
+            echo ""
+            echo "|  |  |"
+            echo "|---|---|"
+            echo "| Tienda | \`$GITHUB_REPOSITORY\`, versión **$v** |"
+            echo "| Antes de esto | \`$(git log -1 --format='%h · %cd' --date=format:'%d %b %H:%M')\` |"
+            echo "| Se pidió | $pedido |"
+            echo "| Lo disparó | $GITHUB_ACTOR · \`$GITHUB_EVENT_NAME\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # LA CACHÉ DE NPM, A MANO Y NO CON `cache: npm`.
       # `cache: npm` exige un package-lock.json, y en este repositorio los dos
@@ -135,6 +183,41 @@ jobs:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('package.json', 'pruebas/package.json') }}
           restore-keys: npm-${{ runner.os }}-
+
+      # ── ¿HASTA DÓNDE LLEGA EL PERMISO DE LA SEMILLA? (0.20.5 · bitácora 92) ──
+      # `alta` copia `SEMILLA_TOKEN` a cada tienda para que pueda traerse los
+      # flujos nuevos. Si ese permiso está acotado a la semilla —lo normal en un
+      # token de grano fino— aquí no vale: se pregunta una vez, se dice en el
+      # resumen qué falta exactamente, y la actualización sigue trayendo todo lo
+      # demás. Un permiso corto deja la tienda una versión atrás en sus flujos;
+      # no puede dejarla sin actualizarse.
+      - name: ¿El permiso de la semilla alcanza a esta tienda?
+        id: permiso
+        env:
+          SEMILLA_TOKEN: ${{ secrets.SEMILLA_TOKEN }}
+        run: |
+          flujos=no
+          if [ -n "$SEMILLA_TOKEN" ]; then
+            codigo=$(curl -s -o /dev/null -w '%{http_code}' \
+                     -H "Authorization: Bearer $SEMILLA_TOKEN" \
+                     -H "Accept: application/vnd.github+json" \
+                     "https://api.github.com/repos/$GITHUB_REPOSITORY")
+            if [ "$codigo" = "200" ]; then
+              flujos=si
+            else
+              {
+                echo ""
+                echo "**El permiso \`SEMILLA_TOKEN\` de esta tienda no la alcanza a ella misma** (GitHub contesta \`$codigo\`)."
+                echo "La actualización trae todo lo demás; lo que se queda atrás son los **flujos**"
+                echo "(\`.github/workflows\`), que necesitan ese permiso para poder empujarse."
+                echo ""
+                echo "Para arreglarlo, en el token de grano fino que \`tiendas\` copia a cada tienda:"
+                echo "*Repository access* tiene que incluir **\`$GITHUB_REPOSITORY\`**, con *Contents* y"
+                echo "*Workflows* en **Read and write**. No hay que crear uno nuevo: basta con ampliarlo."
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+          echo "flujos=$flujos" >> "$GITHUB_OUTPUT"
 
       # ── EL SITIO TIENE QUE TENER NOMBRE PROPIO (A-3) ──
       # No habla con el maestro, así que corre siempre, incluso antes de que
@@ -176,6 +259,9 @@ jobs:
         env:
           SEMILLA_TOKEN: ${{ secrets.SEMILLA_TOKEN }}
           VERSION: ${{ inputs.version }}
+          # 0.20.5 · Que el permiso EXISTA no quiere decir que sirva aquí: lo
+          # que decide si los flujos se escriben es lo que contestó GitHub.
+          FLUJOS: ${{ steps.permiso.outputs.flujos }}
         run: node montar/actualizar-semilla.mjs
 
       - name: Dependencias
@@ -206,10 +292,12 @@ jobs:
         run: |
           node montar/sondear.mjs 2>&1 | tee /tmp/sondeo.txt || true
           {
-            echo "### El sondeo"
+            echo "<details><summary>El sondeo</summary>"
+            echo ""
             echo '```'
             cat /tmp/sondeo.txt
             echo '```'
+            echo "</details>"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: ¿Esta hoja es la de esta tienda?
@@ -221,10 +309,12 @@ jobs:
           set -o pipefail
           node montar/misma-tienda.mjs --desde 2>&1 | tee /tmp/misma.txt || estado=$?
           {
-            echo "### De qué tienda es la hoja"
+            echo "<details><summary>De qué tienda es la hoja</summary>"
+            echo ""
             echo '```'
             cat /tmp/misma.txt
             echo '```'
+            echo "</details>"
           } >> "$GITHUB_STEP_SUMMARY"
           exit ${estado:-0}
 
@@ -315,10 +405,12 @@ jobs:
           set -o pipefail   # sin esto manda el código de tee y un fallo se pierde
           node montar/publicar-maestro.mjs | tee /tmp/maestro.txt
           {
-            echo '### Maestro'
+            echo "<details><summary>Maestro</summary>"
+            echo ""
             echo '```'
             cat /tmp/maestro.txt
             echo '```'
+            echo "</details>"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # ── 2. Lo que dice la hoja ──
@@ -396,10 +488,12 @@ jobs:
           set -o pipefail
           node montar/catalogo-estatico.mjs --desde 2>&1 | tee /tmp/catalogo.txt
           {
-            echo "### El catálogo"
+            echo "<details><summary>El catálogo</summary>"
+            echo ""
             echo '```'
             cat /tmp/catalogo.txt
             echo '```'
+            echo "</details>"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # 0.16.0 · Si se eligió Cloudflare para las fotos, ¿de verdad transforma?
@@ -431,10 +525,12 @@ jobs:
           set -o pipefail
           node montar/sembrar-respaldo.mjs 2>&1 | tee /tmp/respaldo.txt
           {
-            echo "### El respaldo del index.html"
+            echo "<details><summary>El respaldo del index.html</summary>"
+            echo ""
             echo '```'
             cat /tmp/respaldo.txt
             echo '```'
+            echo "</details>"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # ── EL NOMBRE DEL WORKER, QUE ES LO ÚNICO QUE PUEDE PISAR A OTRA TIENDA ──
@@ -463,10 +559,12 @@ jobs:
           set -o pipefail
           node montar/sembrar-seo.mjs 2>&1 | tee /tmp/seo.txt
           {
-            echo "### El SEO horneado"
+            echo "<details><summary>El SEO horneado</summary>"
+            echo ""
             echo '```'
             cat /tmp/seo.txt
             echo '```'
+            echo "</details>"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: El nombre del Worker, desde la hoja
@@ -475,10 +573,12 @@ jobs:
           set -o pipefail
           node montar/nombrar-worker.mjs 2>&1 | tee /tmp/worker.txt
           {
-            echo "### El nombre del Worker"
+            echo "<details><summary>El nombre del Worker</summary>"
+            echo ""
             echo '```'
             cat /tmp/worker.txt
             echo '```'
+            echo "</details>"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: ¿Cambió algo?
@@ -648,14 +748,28 @@ jobs:
           RESUMEN: ${{ steps.cambios.outputs.resumen }}
           DETALLE: ${{ steps.cambios.outputs.detalle }}
           AUTO: ${{ inputs.aprobacion != 'con-pull-request' || steps.semilla.outputs.cambio == 'si' }}
+          SEMILLA_TOKEN: ${{ secrets.SEMILLA_TOKEN }}
+          FLUJOS: ${{ steps.permiso.outputs.flujos }}
         run: |
           git config user.name  "montaje"
           git config user.email "noreply@github.com"
           git commit --quiet -m "refactor/frontend: $RESUMEN" -m "$DETALLE"
 
+          # CADA EMPUJÓN CON EL PERMISO QUE LE SIRVE (0.20.5 · bitácora 92).
+          # El GITHUB_TOKEN de Actions no puede escribir `.github/workflows`
+          # nunca; el de la semilla sí, cuando alcanza a esta tienda —y eso ya
+          # se preguntó arriba—. Se intenta con ese y, si falla, con el propio:
+          # un permiso que no llega puede dejar los flujos atrás, pero no puede
+          # dejar la tienda sin publicar todo lo demás.
+          empujar() {
+            if [ "$FLUJOS" = "si" ] && [ -n "$SEMILLA_TOKEN" ]; then
+              git push --quiet "https://x-access-token:${SEMILLA_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:$1" && return 0
+            fi
+            git push --quiet origin "HEAD:$1"
+          }
+
           if [ "$AUTO" = "true" ]; then
-            if git push --quiet origin HEAD:main; then
-              echo "Publicado en \`main\`. Cloudflare despliega solo." >> "$GITHUB_STEP_SUMMARY"
+            if empujar main; then
               exit 0
             fi
             # Si `main` está protegida, el push se rechaza y eso NO es un fallo:
@@ -673,7 +787,7 @@ jobs:
           # archivos generados, y con un nombre fijo el segundo choca contra la
           # rama del primero pase lo que pase.
           rama="montaje/desde-la-hoja-$(date +%Y%m%d-%H%M)"
-          git push -u origin HEAD:"$rama"
+          empujar "$rama"
 
           cuerpo="Lo que cambió el comercio desde su hoja y su carpeta de Drive."
           cuerpo+=$'\n\n### Qué trae\n```\n'
@@ -755,6 +869,19 @@ jobs:
           SIN_GUARDIA: ${{ inputs.sin_guardia && '1' || '0' }}
         run: |
           estado=0
+          # 0.20.3 · MEDIR NO PUEDE TUMBAR UN MONTAJE (bitácora 90). Una tienda
+          # que nació de una versión anterior puede no traer esta herramienta:
+          # el flujo nuevo la llama, el archivo no está, y Node se cae con
+          # MODULE_NOT_FOUND llevándose por delante una corrida que había
+          # publicado bien. Lo que falta es el cronómetro, no la tienda.
+          if [ ! -f montar/tiempos.mjs ]; then
+            {
+              echo ""
+              echo "_Sin cronómetro: esta tienda no trae \`montar/tiempos.mjs\`._"
+              echo "_Llega con la próxima actualización (montaje › **semilla**)._"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           node montar/tiempos.mjs || estado=$?
           # La herramienta imprime y escribe tiempos.md; el flujo lo pega en
           # el resumen. Es como lo hacen todos los pasos de aquí, y deja que
@@ -771,3 +898,30 @@ jobs:
           path: tiempos.json
           retention-days: 30
           if-no-files-found: ignore
+
+      # ── CÓMO QUEDÓ (0.20.4 · bitácora 91) ────────────────────────────────
+      # La última línea del resumen dice en qué estado queda la TIENDA, que es
+      # lo que se fue a averiguar. Antes lo decía a medias el paso que empuja
+      # («Publicado en main»), y solo si llegaba a correr: una corrida roja
+      # terminaba sin una sola frase sobre si la tienda estaba tocada o no.
+      - name: Cómo quedó
+        if: always()
+        run: |
+          v=$(node -p "require('./package.json').version" 2>/dev/null || echo '?')
+          ahora=$(git rev-parse --short=7 HEAD)
+          {
+            echo ""
+            if [ "${{ job.status }}" != "success" ]; then
+              echo "### La tienda sigue como estaba"
+              echo ""
+              echo "En \`${GITHUB_SHA:0:7}\`, versión **$v**: esta corrida no dejó nada publicado."
+            elif [ "$ahora" = "${GITHUB_SHA:0:7}" ]; then
+              echo "### La tienda ya estaba al día"
+              echo ""
+              echo "En \`$ahora\`, versión **$v**. No hizo falta publicar nada."
+            else
+              echo "### La tienda queda publicada en \`$ahora\`"
+              echo ""
+              echo "Versión **$v**. Cloudflare republica solo, en un minuto."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

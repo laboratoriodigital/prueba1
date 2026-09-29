@@ -50,6 +50,13 @@ export function principal(dir = process.cwd()) {
   return r;
 }
 
+/* Si el flujo ya preguntó, manda su respuesta; si no (una corrida vieja, o
+   correrlo a mano), vale lo de antes: el permiso existe, se supone que sirve. */
+export function puedeFlujos(env = process.env) {
+  if (env.FLUJOS) return env.FLUJOS === 'si';
+  return !!(env.SEMILLA_TOKEN || env.SEMILLA_ORIGEN);
+}
+
 function trabajar(dir) {
   const conf = JSON.parse(readFileSync(join(dir, 'semilla.json'), 'utf8'));
   const aqui = String(process.env.GITHUB_REPOSITORY || '').toLowerCase();
@@ -75,9 +82,18 @@ function trabajar(dir) {
     decir(`### La semilla no tiene la versión ${hasta || '(ninguna)'}\n\nSolo se traen versiones publicadas con **release**.`);
     throw new Error('sin esa versión');
   }
+  /* 0.18.0 · VOLVER ATRÁS ES PEDIR UNA VERSIÓN EXACTA. Sin versión pedida,
+     «la última» nunca es anterior a la de la tienda y esto es lo de siempre:
+     no hay nada que traer. Con una versión escrita —que es lo que hace el
+     flujo `restaurar`— sí se trae, aunque sea anterior: pedir una versión
+     exacta es decir A CUÁL, y negarse ahí dejaría una tienda rota sin más
+     salida que editarle los archivos a mano. */
   if (version(desde) && comparar(desde, hasta) >= 0) {
-    decir(`### La semilla\n\nEsta tienda ya está en la ${desde}, la última publicada es ${hasta}. Nada que traer.`);
-    return { cambia: false, desde, hasta };
+    if (!pedida || comparar(desde, hasta) === 0) {
+      decir(`### La semilla\n\nEsta tienda ya está en la ${desde}, la ${pedida ? 'pedida' : 'última publicada'} es ${hasta}. Nada que traer.`);
+      return { cambia: false, desde, hasta };
+    }
+    decir(`### Volver atrás\n\nEsta tienda está en la ${desde} y se pidió la ${hasta}, que es ANTERIOR. Se trae: una versión escrita a mano es decir a cuál.`);
   }
   const nuevaDir = join(trabajo, 'nueva');
   git(semilla, 'worktree', 'add', '--quiet', '--detach', nuevaDir, hasta);
@@ -95,8 +111,14 @@ function trabajar(dir) {
     tiendaDir: dir, nuevaDir, baseDir, propios: nuevaConf.propios, version: hasta,
     sinBase: process.env.SIN_BASE === 'sobrescribir' ? 'sobrescribir' : 'dejar',
     /* Empujar un flujo necesita un permiso que el GITHUB_TOKEN de Actions no
-       tiene nunca. Sin SEMILLA_TOKEN, los flujos se quedan como están. */
-    excluir: TOKEN || ORIGEN ? [] : ['.github/workflows/']
+       tiene nunca. Sin SEMILLA_TOKEN, los flujos se quedan como están.
+       0.20.5 · Y TENERLO NO ES TENERLO ÚTIL (bitácora 92): un permiso de grano
+       fino acotado a la semilla existe aquí y no alcanza a esta tienda. El
+       flujo lo pregunta antes y lo dice en FLUJOS; escribir unos flujos que
+       después no se pueden empujar deja la publicación entera rechazada. */
+    excluir: puedeFlujos() ? [] : ['.github/workflows/'],
+    /* Lo que la versión nueva declara retirado: lo dice ELLA, no la tienda. */
+    retirados: nuevaConf.retirados || []
   });
   decir(informeEnTexto({ desde, hasta, informe }));
   return Object.assign({ desde, hasta }, informe);

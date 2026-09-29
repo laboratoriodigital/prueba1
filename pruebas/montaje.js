@@ -18,6 +18,8 @@ const { hornear } = require('../montar/catalogo-estatico.mjs');
 const { veredicto } = require('../montar/misma-tienda.mjs');
 const respaldo = require('../montar/sembrar-respaldo.mjs');
 const fs = require('fs');
+const { esSemilla } = require('./donde.js');
+const cp = require('node:child_process');
 const T = []; const ok = (n, c, d) => T.push((c ? '  OK  ' : ' FALLA') + ' | ' + n + (d ? '  -> ' + d : ''));
 
 const CARPETA = '1CarpetaDeFotosDelComercio';
@@ -1015,7 +1017,15 @@ const configurar = (g, clave, valor) => {
      nada no es un error —no hay nada que cortar—; lo que sí lo es, y hay que
      distinguirlo, es que la etiqueta exista apuntando a OTRO commit: ahí el
      código cambió y la versión no. */
-  {
+  /* 0.20.6 · `release` NO VIAJA A LAS TIENDAS (bitácora 93): `alta` no se lo
+     hereda, porque una tienda no corta versiones. Esta batería corre TAMBIÉN
+     dentro de la tienda —`montaje` la corre antes de publicar— y leer ahí un
+     archivo que no existe tumbaba la batería entera con un ENOENT: la tienda
+     no publicaba y el motivo que se leía era «batería en rojo». */
+  if (!fs.existsSync('../.github/workflows/release.yml')) {
+    console.log('  SALTA | el flujo `release` no viaja a las tiendas (`alta` no se lo hereda):');
+    console.log('          una tienda no corta versiones, así que aquí no hay nada que comprobar.');
+  } else {
     const rel = yml('release.yml');
     ok('EL RELEASE distingue "ya está hecho" de "te faltó subir la versión"',
        /ya está publicada, y es exactamente este commit/.test(rel) &&
@@ -1326,57 +1336,29 @@ const configurar = (g, clave, valor) => {
    la primera. En el equipo eso lo detecta `npm run tienda`; desde el navegador
    no hay quien avise. Por eso lo hace el flujo. */
 {
-  /* Vive en servicio/ y NO en .github/workflows/: este repositorio es la
-     plantilla, y pedirle el nombre de un repositorio nuevo desde dentro del que
-     ya es el nuevo no tiene sentido. Corre desde el repositorio de servicio,
-     que es donde está el único token capaz de crear repositorios. Se queda
-     versionado aquí porque aquí están estas aserciones. */
-  const alta = fs.readFileSync('../servicio/tienda-nueva.yml', 'utf8');
-
-  ok('EL ALTA NO ES UN FLUJO DE LA PLANTILLA',
-     !fs.existsSync('../.github/workflows/tienda-nueva.yml') &&
-     fs.existsSync('../servicio/tienda-nueva.yml'),
-     'cada tienda heredaría un flujo que no va a usar nunca');
-  ok('  ...y dice dónde sí corre, para que las dos copias no se separen',
-     /laboratoriodigital\/tiendas/.test(alta) && /NO CORRE AQUÍ/.test(alta) &&
-     /laboratoriodigital\/tiendas/.test(fs.readFileSync('../servicio/README.md', 'utf8')));
-  ok('  ...y toma la plantilla de una entrada, no de sí mismo',
-     /inputs\.plantilla/.test(alta) && /plantilla:/.test(alta),
-     'corre desde otro repositorio: no puede generarse a partir de él');
-
-  ok('EL ALTA le pone a la tienda su propio nombre en wrangler.jsonc',
-     /"name":\\s\*"\[\^"\]\*"/.test(alta) && /wrangler\.jsonc/.test(alta),
-     'dos tiendas con el mismo name son el mismo Worker');
-  ok('  ...y se planta si no encuentra esa clave, en vez de seguir',
-     /No encontré la clave name/.test(alta));
-  ok('  ...y no toca un repositorio que ya existe',
-     /gh repo view/.test(alta) && /No toco nada/.test(alta));
-  ok('  ...ni acepta un nombre con caracteres que GitHub no admite',
-     /\^\[A-Za-z0-9\._-\]\+\$/.test(alta));
-
-  ok('DEJA PUESTOS los dos secretos de la tienda',
-     /gh secret set MAESTRO_URL/.test(alta) && /gh secret set MAESTRO_TOKEN/.test(alta));
-  ok('  ...comprobando la URL antes: la /dev solo sirve para el dueño',
-     /macros\/s\/\*\/exec/.test(alta) && /tk-\*/.test(alta));
-
-  /* El GITHUB_TOKEN de un flujo no puede crear repositorios ni escribir
-     secretos en otros. No hay forma de evitar un token con esos permisos, y lo
-     que sí se puede es no dejarlo sin explicar. */
-  ok('EXIGE SU PROPIO TOKEN y dice por qué el del flujo no sirve',
-     /ALTA_TOKEN/.test(alta) && /no puede crear repositorios/.test(alta) &&
-     /Administration/.test(alta) && /vencimiento/.test(alta));
-  ok('  ...y si no está, lo dice en el resumen en vez de fallar sin más',
-     /Falta el secreto/.test(alta));
-
-  /* La casilla que, sin marcar, deja que montaje corra entero, funcione, y
-     falle en la última línea al abrir el pull request. Era el paso manual más
-     fácil de olvidar del runbook. */
-  ok('DEJA A ACTIONS abrir pull requests, sin que nadie marque la casilla',
-     /actions\/permissions\/workflow/.test(alta) &&
-     /can_approve_pull_request_reviews=true/.test(alta));
-  ok('  ...y deja el squash puesto, que es como fusiona el flujo de fotos',
-     /allow_squash_merge=true/.test(alta) && /delete_branch_on_merge=true/.test(alta),
-     'fotos fusiona con --squash --delete-branch cada cuatro horas');
+  /* 0.17.0 · EL ALTA VIEJA SE FUE. `servicio/tienda-nueva.yml` pedía de
+     entrada el repositorio, la URL del maestro, su token, la plantilla y si era
+     privado: cosas que no existen cuando la tienda todavía no existe. Lo
+     reemplazan `alta` y `conectar` en laboratoriodigital/tiendas, tres campos
+     cada uno, con sus aserciones allá (flota/pruebas.mjs). Aquí se comprueba
+     que no vuelva: ni como flujo de la semilla (cada tienda lo heredaría) ni
+     como copia que se separe de la de tiendas. */
+  /* 0.20.8 · ESTO HABLA DE LA SEMILLA (bitácora 95). Dentro de una tienda la
+     misma línea pregunta otra cosa: si esa tienda todavía arrastra la carpeta
+     de cuando nació. Y la respuesta es que sí hasta que la actualización
+     siguiente la borre —la que corre es la herramienta que la tienda ya tenía,
+     no la que acaba de llegar—, así que sin guarda esto bloqueaba justo la
+     publicación que lleva la limpieza. */
+  if (!esSemilla()) {
+    console.log('  SALTA | «el alta vieja no existe»: eso se comprueba en la semilla.');
+    console.log('          Si esta tienda todavía arrastra `servicio/`, se lo lleva la');
+    console.log('          actualización siguiente (semilla.json › retirados).');
+  } else {
+    ok('EL ALTA VIEJA NO EXISTE: ni en la semilla ni como copia para tiendas',
+       !fs.existsSync('../.github/workflows/tienda-nueva.yml') &&
+       !fs.existsSync('../servicio/tienda-nueva.yml'),
+       'el alta vive en laboratoriodigital/tiendas: alta + conectar');
+  }
 
   /* CUANDO NO SE PUEDE PUBLICAR, HAY QUE DECIR POR QUÉ. GitHub contesta con un
      error de permisos en una anotación al pie, y para verla hay que saber que
@@ -1394,44 +1376,13 @@ const configurar = (g, clave, valor) => {
        'ya se perdió un catálogo con el runner una vez');
   }
 
-  ok('DICE QUÉ FALTA, que es lo que no puede hacer',
-     /Connect to Git/.test(alta) && /cuenta de Google/.test(alta),
-     'Cloudflare y Google son del navegador');
-
-  /* UN FORMULARIO ACEPTA LO QUE SEA QUE SE PEGUE. La primera corrida de verdad
-     falló con "unsupported protocol scheme" porque en `plantilla` fue la URL
-     del navegador y la API pide dueño/repositorio pelado. Pedirle rigor a quien
-     llena el formulario es la solución que no funciona: la barra de direcciones
-     está ahí al lado. */
-  ok('NORMALIZA lo que venga del formulario antes de tocar la API',
-     /Leer el formulario/.test(alta) && /limpiar\(\)/.test(alta) &&
-     /s#\^\[a-zA-Z\]\*:\/\/##/.test(alta) && /s#\\.git\$##/.test(alta),
-     'una URL pegada en plantilla tumbaba el alta entera');
-  ok('  ...y se planta con lo que no se puede normalizar, diciendo qué recibió',
-     /dueño\/repositorio, no como URL/.test(alta) && /recibido:/.test(alta));
-  ok('  ...y usa el valor limpio, no el crudo, en TODAS partes',
-     !/inputs\.plantilla \}\}\/generate/.test(alta) &&
-     (alta.match(/steps\.datos\.outputs\./g) || []).length >= 4,
-     'normalizar y después usar el original es peor que no normalizar');
-
-  /* APARCADO, y eso también se comprueba. Un flujo escrito, probado y fuera del
-     camino es útil; un flujo escrito, probado y que el mapa de despliegue
-     manda a usar sin que nadie lo haya corrido contra una tienda de verdad,
-     no. Desde la 3.0.0 el mapa es un solo documento, DESPLIEGUE.md — los
-     cuatro que existían antes se consolidaron ahí y se borraron. */
+  /* El mapa de despliegue manda al camino corto (alta + conectar), no al
+     flujo viejo. */
   {
     const mapa = fs.readFileSync('../docs/DESPLIEGUE.md', 'utf8');
-    const roadmap = fs.readFileSync('../docs/ROADMAP.md', 'utf8');
-    /* Solo el tramo del repositorio (paso 1), no el documento entero: más
-       abajo el mapa vuelve a decir «tienda nueva» hablando de clonar la
-       plantilla, que no tiene nada que ver con el flujo aparcado, y una
-       regla sin acotar lo confundía con una instrucción a usarlo. */
-    const paso1 = mapa.slice(0, mapa.indexOf('## 2 ·'));
-    ok('EL ALTA ESTÁ APARCADA, y el roadmap dice por qué',
-       /APARCADO/.test(roadmap) && /tienda-nueva\.yml/.test(roadmap));
-    ok('  ...y el mapa de despliegue no manda a usarla como camino normal',
-       /aparcado a propósito/.test(paso1),
-       'el camino documentado es el que se ha corrido de verdad');
+    ok('  ...y el mapa de despliegue manda a alta y conectar',
+       /El camino normal/.test(mapa) && /actions\/workflows\/conectar\.yml/.test(mapa) &&
+       !/servicio\/tienda-nueva\.yml/.test(mapa));
   }
 
   /* Aquí SÍ tiene que coincidir: el flujo que el mapa manda a disparar en cada
@@ -1756,8 +1707,17 @@ const configurar = (g, clave, valor) => {
   const maestro  = fs.readFileSync('../maestro.gs', 'utf8');
   const cabeceras = fs.readFileSync('../publicar/_headers', 'utf8');
   const conectan = t => (t.match(/connect-src ([^;"]+)/) || [])[1] || '';
-  const tres = [conectan(pag), conectan(maestro), conectan(cabeceras)]
-    .map(x => x.trim().split(/\s+/).sort().join(' '));
+  /* 0.19.0 · LA MEDICIÓN ES LA EXCEPCIÓN, Y ESTÁ ACOTADA. `_headers` es igual
+     en todas las tiendas, así que nombra los hosts de Google Analytics
+     SIEMPRE; el <meta> de cada tienda solo cuando esa tienda mide. Permitir un
+     host no carga nada. Así que la comparación es: quitando esos hosts —los
+     que el propio maestro declara, no una lista escrita aparte— las tres
+     copias tienen que decir exactamente lo mismo. */
+  const deMedicion = ((maestro.match(/conecta: '([^']+)'/) || [])[1] || '')
+    .trim().split(/\s+/).filter(Boolean);
+  const listas = [conectan(pag), conectan(maestro), conectan(cabeceras)]
+    .map(x => x.trim().split(/\s+/).filter(Boolean));
+  const tres = listas.map(l => l.filter(h => deMedicion.indexOf(h) === -1).sort().join(' '));
 
   ok('LA CSP dice lo mismo en los TRES sitios donde vive',
      tres[0] && tres[0] === tres[1] && tres[1] === tres[2],
@@ -1765,6 +1725,10 @@ const configurar = (g, clave, valor) => {
   ok('  ...y las tres dejan a la tienda leer su propio catálogo',
      tres.every(x => /'self'/.test(x)),
      "sin 'self' en _headers el fetch se bloquea en produccion y aqui no se nota");
+  ok('  ...y los hosts de medición están en _headers, que es igual para todas',
+     deMedicion.length === 3 && deMedicion.every(h => listas[2].indexOf(h) !== -1) &&
+     deMedicion.every(h => listas[0].indexOf(h) === -1),
+     deMedicion.join(' ') || 'el maestro no declara ninguno');
 
   ok('EL CATÁLOGO se sirve con caché corta, no eterna',
      /\/catalogo\.json/.test(cabeceras) && /max-age=60/.test(cabeceras),
@@ -1806,7 +1770,7 @@ const configurar = (g, clave, valor) => {
      /git status --porcelain -- \$PUBLICA/.test(flujo),
      'un «no» sin pruebas obliga a ir a buscarlas afuera');
   ok('EL HORNEADO deja en el resumen lo que hizo',
-     /tee \/tmp\/catalogo\.txt/.test(flujo) && /### El catálogo/.test(flujo),
+     /tee \/tmp\/catalogo\.txt/.test(flujo) && /(### |<summary>)El catálogo/.test(flujo),
      'desde Actions el log es lo único que hay');
   ok('  ...con pipefail, que es lo que hace que un fallo cuente',
      /set -o pipefail\n          node montar\/catalogo-estatico/.test(flujo),
@@ -1818,7 +1782,7 @@ const configurar = (g, clave, valor) => {
   const pruebasYml = fs.readFileSync('../.github/workflows/pruebas.yml', 'utf8');
   for (const [nombre, y] of [['montaje', flujo], ['pruebas', pruebasYml]]) {
     ok('EL FLUJO `' + nombre + '` pone las líneas FALLA en el resumen',
-       /### Las baterías/.test(y) && /grep -E "\^ FALLA/.test(y),
+       /### (Las baterías|En rojo)/.test(y) && /grep -E "\^ FALLA/.test(y),
        'desde Actions el resumen es lo primero que se ve');
     ok('  ...y sigue fallando cuando fallan',
        /exit \$\{estado:-0\}/.test(y),
@@ -2513,6 +2477,256 @@ const configurar = (g, clave, valor) => {
      (vacia.api.diagnostico().texto.match(/[^\n]*terminada[^\n]*/) || [''])[0].trim());
 }
 
+/* ═══ 27bis. LO QUE UN FLUJO EJECUTA, EXISTE Y VIAJA (0.20.3 · bitácora 90) ═══
+   El montaje de una tienda se cayó con «Cannot find module montar/tiempos.mjs»
+   después de publicar bien: el flujo llamaba a una herramienta que ESE
+   repositorio no tenía. Dos cosas tienen que ser ciertas para que eso no
+   vuelva: que todo `node montar/x.mjs` de cualquier flujo exista aquí, y que
+   esté versionado —un archivo ignorado por git está en la semilla y no llega a
+   ninguna tienda—. Lo tercero, que el flujo no se caiga si aun así falta, se
+   comprueba abajo. */
+{
+  const flujos = fs.readdirSync('../.github/workflows')
+    .map(f => ({ f, t: fs.readFileSync('../.github/workflows/' + f, 'utf8') }));
+  const llamadas = [...new Set(flujos.flatMap(({ t }) =>
+    [...t.matchAll(/node\s+(montar\/[\w.-]+\.mjs)/g)].map(m => m[1])))];
+  const ausentes = llamadas.filter(r => !fs.existsSync('../' + r));
+  ok('TODA HERRAMIENTA que un flujo ejecuta existe en la semilla',
+     llamadas.length >= 10 && ausentes.length === 0, ausentes.join(', ') || llamadas.length + ' herramientas');
+
+  /* Versionadas: lo que git ignora no viaja a la tienda, y el fallo aparece
+     semanas después, en el repositorio de otro. */
+  const ignorado = (() => {
+    try {
+      return cp.execFileSync('git', ['check-ignore', '--no-index', ...llamadas],
+        { cwd: '..', stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim().split('\n').filter(Boolean);
+    } catch (e) { return []; }            // salida 1 = ninguno ignorado
+  })();
+  ok('  ...y ninguna está ignorada por git: lo que no se versiona no llega a la tienda',
+     ignorado.length === 0, ignorado.join(', ') || 'todas versionadas');
+
+  /* Y la que mide el tiempo, además, no puede tumbar la corrida por faltar:
+     medir es un servicio, no el trabajo. */
+  /* 0.20.4 · Y NO SOLO EN `montaje`. Esta aserción miraba un solo flujo, y
+     `fotos` —el que corre todos los días en todas las tiendas— llamaba al
+     cronómetro sin red: la misma caída de la bitácora 90, esperando en el
+     flujo de al lado. Ahora se le exige a cualquiera que lo llame. */
+  const conReloj = flujos.filter(x => /node montar\/tiempos\.mjs/.test(x.t));
+  const sinRed = conReloj.filter(x => !(/\[ ! -f montar\/tiempos\.mjs \]/.test(x.t) &&
+                                        /Sin cronómetro/.test(x.t)));
+  ok('  ...y si el cronómetro no está, el flujo lo dice y sigue: TODOS los que lo llaman',
+     conReloj.length >= 2 && sinRed.length === 0,
+     sinRed.map(x => x.f).join(', ') || conReloj.map(x => x.f).join(', '));
+}
+
+/* ═══ 27c. EL RUNBOOK Y LA LISTA DE FUNCIONALIDADES, VIVOS (0.19.0) ═══
+   Dos documentos nuevos que un técnico sigue con los dedos y que un comercial
+   enseña. El modo de fallo de los dos es el mismo: nombrar una función, un
+   flujo o una opción que ya no existe, y que nadie se entere hasta que alguien
+   está montando una tienda a las once de la noche. Así que se comprueban
+   contra el código, no contra el recuerdo. */
+{
+  const runbook = fs.readFileSync('../docs/RUNBOOK-TECNICO.md', 'utf8');
+  const funcs = fs.readFileSync('../docs/FUNCIONALIDADES.md', 'utf8');
+  const g = nuevo();
+
+  const nombradas = [...new Set(runbook.match(/A\d_[A-Za-z]+/g) || [])];
+  const inventadas = nombradas.filter(f => typeof g.api[f] !== 'function');
+  ok('EL RUNBOOK solo manda ejecutar funciones que existen',
+     nombradas.length >= 4 && inventadas.length === 0,
+     inventadas.join(', ') || nombradas.join(', '));
+
+  const flujos = fs.readdirSync('../.github/workflows').map(f => f.replace('.yml', ''));
+  const citados = [...new Set((runbook.match(/flujo `([a-z]+)`/g) || [])
+    .map(x => x.replace(/flujo `|`/g, '')))];
+  const fantasmas = citados.filter(f => flujos.indexOf(f) === -1 &&
+    ['alta', 'conectar', 'flota'].indexOf(f) === -1);
+  ok('  ...y solo nombra flujos que existen (aquí o en el repositorio de servicio)',
+     citados.length >= 3 && fantasmas.length === 0, fantasmas.join(', ') || citados.join(', '));
+
+  ok('  ...y lleva las comprobaciones de cada paso, que es para lo que sirve',
+     (runbook.match(/- \[ \]/g) || []).length >= 20 && /## I · Incidentes/.test(runbook),
+     (runbook.match(/- \[ \]/g) || []).length + ' comprobaciones');
+
+  const rotulos = g.api.menuDeLaHoja().map(m => m.rotulo);
+  const fuera = rotulos.filter(r => funcs.indexOf(r) === -1);
+  ok('LA LISTA DE FUNCIONALIDADES no se deja ninguna opción del menú fuera',
+     fuera.length === 0, fuera.join(' · ') || rotulos.length + ' opciones');
+  ok('  ...ni las pestañas de la hoja, ni lo que la tienda NO hace',
+     ['Catálogo', 'Configuración', 'Envíos', 'Cupones', 'Pedidos', 'Avísame', 'Papelera', 'Validaciones']
+       .every(h => funcs.indexOf(h) !== -1) && /no\*\* hace/.test(funcs));
+}
+
+/* ═══ 27b. NINGUNA CREDENCIAL SIN DOCUMENTAR (0.19.0) ═══
+   El dueño pidió que la arquitectura dijera, sin suponer nada, qué secretos
+   hay, dónde viven y qué permiten. Una tabla escrita a mano envejece en la
+   primera versión que agrega un secreto —y lo hace en silencio—, así que la
+   tabla tiene guardia: cada `secrets.X` de cualquier flujo y cada propiedad
+   que el maestro o el panel leen o escriben tiene que estar NOMBRADA en
+   ARQUITECTURA.md. Con acento invertido, no como palabra suelta en la prosa. */
+{
+  const arq = fs.readFileSync('../docs/ARQUITECTURA.md', 'utf8');
+  const fuentes = ['../maestro.gs', '../panel.gs'].map(f => fs.readFileSync(f, 'utf8')).join('\n');
+  const flujos = fs.readdirSync('../.github/workflows')
+    .map(f => fs.readFileSync('../.github/workflows/' + f, 'utf8')).join('\n');
+
+  const secretos = [...new Set((flujos.match(/secrets\.[A-Z_]+/g) || [])
+    .map(x => x.replace('secrets.', '')))].filter(x => x !== 'GITHUB_TOKEN');
+  const sinDocumentar = secretos.filter(x => arq.indexOf('`' + x + '`') === -1);
+  ok('TODO SECRETO de un flujo está en la tabla de credenciales de ARQUITECTURA.md',
+     sinDocumentar.length === 0, sinDocumentar.join(', ') || secretos.join(', '));
+
+  /* Las propiedades del script: las que se leen o se escriben por nombre. Las
+     de Bold se buscan armadas (BOLD_ + tipo + sufijo), así que no aparecen en
+     esta lista y se comprueban aparte. */
+  const props = [...new Set((fuentes.match(/etProperty\('[A-Z_0-9]+'/g) || [])
+    .map(x => x.replace(/.*\('/, '').replace(/'$/, '')))];
+  const propsFuera = props.filter(x => arq.indexOf('`' + x + '`') === -1);
+  ok('  ...y toda propiedad del maestro o del panel, también',
+     propsFuera.length === 0 && props.length >= 20, propsFuera.join(', ') || props.length + ' propiedades');
+  ok('  ...incluidas las llaves de la pasarela, que se arman por partes',
+     /`BOLD_IDENTIDAD_SANDBOX`/.test(arq) && /`BOLD_SECRETA_PRODUCCION`/.test(arq));
+  ok('  ...y cada una dice dónde nace y cómo se renueva',
+     /Cómo se renueva/.test(arq) && /Quién la escribe/.test(arq) && /clasp login/.test(arq));
+}
+
+/* ═══ 27d. EL RESUMEN DE CADA FLUJO: QUÉ ES, CÓMO ESTÁ, SIN REPETIRSE
+       (0.20.4 · bitácora 91) ═══
+   El resumen de una corrida es lo único que lee quien no escribió el flujo, y se
+   había vuelto una pila de volcados: empezaba por lo que imprimió la tercera
+   herramienta, no decía de qué tienda era, ni en qué versión estaba, ni por qué
+   había corrido, y repetía lo mismo tres veces —el marcador de las baterías
+   salía en el TOTAL, en la lista de baterías con problemas y en cada línea de
+   FALLA—. Decir algo tres veces es la otra manera de no decirlo.
+
+   LA FORMA, IGUAL EN LOS OCHO FLUJOS DE LOS DOS REPOSITORIOS: una ficha arriba
+   (qué es esto, sobre qué, cómo está ANTES de tocar nada, qué se pidió y quién
+   lo pidió), lo que se averigua en medio, y el cierre abajo diciendo cómo quedó.
+
+   SE COMPRUEBA AQUÍ porque un flujo no se puede correr en el equipo de nadie: lo
+   que no vigila una aserción lo vigila el susto, y el susto llega en la tienda
+   de un cliente. */
+{
+  const dir = '../.github/workflows';
+  const flujos = fs.readdirSync(dir).filter(f => /\.ya?ml$/.test(f))
+    .map(f => ({ f, t: fs.readFileSync(dir + '/' + f, 'utf8') }));
+
+  /* Los pasos, en el orden en que GitHub los corre. El resumen se escribe por
+     añadidura, así que el orden del archivo ES el orden de la página. */
+  const pasos = t => t.split(/\n      - (?=name:|uses:)/).slice(1)
+    .map(p => ({ nombre: (p.match(/^name: (.+)/) || ['', ''])[1].trim(), t: p }));
+
+  const sinFicha = flujos.filter(({ t }) => {
+    const p = pasos(t).filter(x => /GITHUB_STEP_SUMMARY/.test(x.t))[0];
+    return !p || p.nombre !== 'Qué es esta corrida';
+  });
+  /* El número no se escribe: una tienda tiene cuatro flujos (no hereda
+     `release`) y exigir cinco la dejaba en rojo por no ser la semilla. */
+  ok('LA FICHA es lo PRIMERO que cualquier flujo escribe en el resumen',
+     flujos.length >= 4 && sinFicha.length === 0,
+     sinFicha.map(x => x.f).join(', ') || flujos.map(x => x.f).join(', '));
+
+  /* Qué es, sobre qué, cómo está y quién lo pidió: sin las cuatro cosas la
+     ficha es un título. */
+  const floja = flujos.filter(({ t }) => {
+    const p = pasos(t).filter(x => x.nombre === 'Qué es esta corrida')[0];
+    return !p || !(/echo "## /.test(p.t) && /GITHUB_REPOSITORY/.test(p.t) &&
+                   /GITHUB_ACTOR/.test(p.t) && /package\.json/.test(p.t));
+  });
+  ok('  ...y dice qué es, sobre qué repositorio, en qué versión y quién lo pidió',
+     floja.length === 0, floja.map(x => x.f).join(', ') || 'las cinco fichas completas');
+
+  /* Dos encabezados iguales en la misma página son dos bloques que dicen lo
+     mismo, o uno que sobra. */
+  const repes = [];
+  flujos.forEach(({ f, t }) => {
+    const titulos = (t.match(/echo "#{2,4} [^"]+"/g) || [])
+      .map(x => x.replace(/^echo "#+ |"$/g, ''));
+    const cuenta = {};
+    titulos.forEach(x => { cuenta[x] = (cuenta[x] || 0) + 1; });
+    Object.keys(cuenta).filter(k => cuenta[k] > 1).forEach(k => repes.push(f + ' › ' + k));
+  });
+  ok('  ...y ningún encabezado se repite dentro del mismo flujo',
+     repes.length === 0, repes.join(' · ') || 'sin repeticiones');
+
+  /* Los dos flujos que tocan la tienda cierran diciendo en qué estado la dejan,
+     corra bien o mal: una corrida roja terminaba sin una sola frase sobre si la
+     tienda estaba tocada o no. */
+  const cierran = ['montaje.yml', 'fotos.yml'].map(f => {
+    const p = pasos(flujos.filter(x => x.f === f)[0].t)
+      .filter(x => x.nombre === 'Cómo quedó')[0];
+    return { f, bien: !!p && /if: always\(\)/.test(p.t) && /sigue como estaba/.test(p.t) &&
+                     /queda publicada/.test(p.t) };
+  });
+  ok('  ...y montaje y fotos cierran diciendo cómo queda la tienda, pase lo que pase',
+     cierran.every(x => x.bien), cierran.filter(x => !x.bien).map(x => x.f).join(', ') || 'los dos');
+
+  /* 0.20.5 · NINGÚN FLUJO SE BAJA EL REPOSITORIO CON UN PERMISO AJENO
+     (bitácora 92). `montaje` hacía el checkout con `SEMILLA_TOKEN || github.token`
+     para poder empujar flujos. En una tienda cuyo permiso de grano fino solo
+     alcanzaba a la semilla, el PRIMER paso murió con 403, la corrida entera se
+     saltó y lo único visible al final fue un error del cronómetro que no tenía
+     nada que ver: dos horas para encontrar un permiso mal puesto. Un permiso
+     ajeno se comprueba y se usa donde hace falta; nunca en el paso del que
+     cuelga todo lo demás. */
+  const conPermisoAjeno = flujos.filter(({ t }) =>
+    /- uses: actions\/checkout[\s\S]{0,300}?token: \$\{\{ secrets\./.test(t));
+  ok('  ...y ningún flujo se baja el repositorio con un permiso que puede no alcanzarlo',
+     conPermisoAjeno.length === 0,
+     conPermisoAjeno.map(x => x.f).join(', ') || 'todos con el permiso propio de la tienda');
+
+  /* Y el marcador de las baterías, una sola vez: en el encabezado. El volcado
+     solo aparece cuando hay algo roto que mirar. */
+  const pr = flujos.filter(x => x.f === 'pruebas.yml')[0].t;
+  ok('  ...y el marcador de las baterías se dice UNA vez, en el encabezado',
+     /echo "### Todo en verde ·\$total"/.test(pr) &&
+     !/grep -E "\^ FALLA\|\^  TOTAL/.test(pr),
+     'en verde, una línea; en rojo, el marcador y las fallas');
+}
+
+/* ═══ 27e. LO QUE UNA TIENDA NO TIENE NO PUEDE TUMBAR SU SUITE
+       (0.20.6 · bitácora 93) ═══
+   Las baterías corren TAMBIÉN dentro de la tienda: `montaje` las corre sobre lo
+   recién horneado y de su verde depende que se publique. Pero una tienda no
+   tiene todo lo que hay aquí —`alta` no le hereda `release.yml`, ni el catálogo,
+   ni las fotos de muestra, ni el `publicar/index.html` de la plantilla—, y una
+   batería que abra uno de esos archivos a ciegas se cae con ENOENT, tumba la
+   corrida entera y deja a la tienda sin publicar con el motivo equivocado
+   escrito en el resumen: «batería en rojo». Pasó al actualizar la primera
+   tienda de la 0.16.0 a la 0.20.4, con cinco baterías a la vez.
+
+   Así que quien lea uno de esos archivos tiene que preguntar antes si está
+   —`existsSync`— o comprobar dónde corre —`esSemilla()`—, y saltarse DICIÉNDOLO
+   (patrón 8, regla 2). Lo que no puede es dar por hecho que esto es la semilla. */
+{
+  const NO_HEREDA = ['.github/workflows/release.yml', 'publicar/catalogo.json',
+                     'publicar/fotos', 'publicar/sitemap.xml', 'publicar/compartir.jpg',
+                     'ESTADO.md', 'tienda.json'];
+  const baterias = fs.readdirSync('.')
+    .filter(n => /\.js$/.test(n) && /Resultado: /.test(fs.readFileSync(n, 'utf8')));
+  const aCiegas = [];
+  baterias.forEach(n => {
+    const t = fs.readFileSync(n, 'utf8');
+    const protegida = /existsSync|esSemilla/.test(t);
+    NO_HEREDA.forEach(r => {
+      if (t.indexOf("'../" + r) !== -1 && !protegida) aCiegas.push(n + ' › ' + r);
+    });
+  });
+  ok('NINGUNA BATERÍA abre a ciegas un archivo que una tienda no tiene',
+     aCiegas.length === 0, aCiegas.join(' · ') ||
+     baterias.length + ' baterías, ' + NO_HEREDA.length + ' archivos que no se heredan');
+
+  /* Y el que contesta dónde corre es uno solo, el mismo que mira la
+     actualización: dos maneras de contestar la misma pregunta se contradicen el
+     día que una cambia (patrón 2). */
+  ok('  ...y «dónde corro» se contesta en un solo sitio',
+     esSemilla({ GITHUB_REPOSITORY: 'laboratoriodigital/tienda' }) === true &&
+     esSemilla({ GITHUB_REPOSITORY: 'laboratoriodigital/prueba1' }) === false &&
+     esSemilla({}) === true &&
+     JSON.parse(fs.readFileSync('../semilla.json', 'utf8')).repositorio === 'laboratoriodigital/tienda',
+     'sin GITHUB_REPOSITORY —en el equipo de alguien— esto es la semilla');
+}
+
 /* ═══ 28. LAS QUE SE EJECUTAN A MANO, ENCONTRABLES ═══
    El archivo tiene más de cien funciones y el selector del editor las lista
    revueltas. Las cinco que un humano ejecuta estaban perdidas entre las demás,
@@ -2525,14 +2739,18 @@ const configurar = (g, clave, valor) => {
     .map(x => x.match(/function (\w+)\(/)[1]);
 
   ok('LAS DE EJECUCIÓN MANUAL llevan prefijo, así se agrupan en cualquier lista',
-     conPrefijo.length === 5, conPrefijo.join(', '));
+     conPrefijo.length === 7, conPrefijo.join(', '));
+  /* 0.18.0 · A5 y A6 son las de volver atrás: ver las copias de la hoja y
+     restaurar pestañas desde una (bitácora 77). Van al final, que es cuando se
+     necesitan: montar una tienda sigue siendo A0, A1, A2. */
   ok('  ...numeradas en el orden en que se necesitan, no en el alfabético',
      conPrefijo.join(',') === ['A0_instalar', 'A1_generarStub',
-       'A2_diagnosticoCompleto', 'A3_rotarToken', 'A4_respaldoAhora'].join(','),
+       'A2_diagnosticoCompleto', 'A3_rotarToken', 'A4_respaldoAhora',
+       'A5_respaldos', 'A6_restaurarDatos'].join(','),
      'montar una tienda es A0, A1, A2 de arriba abajo');
-  ok('  ...y las cinco existen de verdad, no solo el comentario',
+  ok('  ...y todas existen de verdad, no solo el comentario',
      conPrefijo.every(f => typeof g.api[f] === 'function'),
-     conPrefijo.filter(f => typeof g.api[f] !== 'function').join(', ') || 'las cinco');
+     conPrefijo.filter(f => typeof g.api[f] !== 'function').join(', ') || 'todas');
 
   /* Son envoltorios: los dos nombres funcionan, y por eso el runbook viejo y
      las hojas ya montadas siguen sirviendo. */
@@ -3331,9 +3549,13 @@ const configurar = (g, clave, valor) => {
      roja sobre un montaje que salió perfecto. Pasó en el primer montaje de este
      repositorio. `fotos` ya lo había aprendido; este flujo no recibió el
      arreglo (patrón 2). */
-  const PUSH = 'git push --quiet origin HEAD:main';
+  /* 0.20.5 · El empujón a main pasa por `empujar`, que elige el permiso que
+     sirve (bitácora 92); lo que se comprueba aquí es el orden, y el orden lo
+     marca la LLAMADA, no dónde esté escrita la función. */
+  const PUSH = 'empujar main';
   ok('EL MONTAJE publica solo, directo en main, como `fotos`',
-     mont.includes(PUSH) && /inputs\.aprobacion != 'con-pull-request'/.test(mont),
+     mont.includes(PUSH) && /git push --quiet origin "HEAD:\$1"/.test(mont) &&
+     /inputs\.aprobacion != 'con-pull-request'/.test(mont),
      'el comerciante no espera a que alguien mire');
   ok('  ...sin abrir un pull request que nadie pidió',
      !/create-pull-request/.test(mont),
@@ -3516,7 +3738,9 @@ const configurar = (g, clave, valor) => {
    Y cuando fallaba, el mensaje mandaba al sitio equivocado: «sube `version` en
    package.json». En una tienda ese consejo es falso. Pasó dos veces.
    ══════════════════════════════════════════════════════════════════════════ */
-{
+if (!fs.existsSync('../.github/workflows/release.yml')) {
+  console.log('  SALTA | `release` no viaja a las tiendas: aquí no hay ninguna versión que cortar.');
+} else {
   const rel = fs.readFileSync('../.github/workflows/release.yml', 'utf8');
 
   ok('`release` se niega a correr fuera de la semilla',

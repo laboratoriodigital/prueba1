@@ -29,7 +29,7 @@
  * =============================================================================
  */
 
-var VERSION_PANEL = '2026-09-10-d';
+var VERSION_PANEL = '2026-09-22-e';
 
 var H_TIENDAS  = 'Tiendas';
 var H_METRICAS = 'Métricas';
@@ -42,7 +42,15 @@ var H_DESPLIEGUES = 'Despliegues';
 var COL_TIENDAS = ['Estado', 'Comercio', 'Contacto', 'Celular', 'Correo',
                    'Plan', 'Precio mensual', 'Día de cobro', 'Alta',
                    'Sitio', 'Servicio (URL /exec)', 'Token',
-                   'Cuenta Google', 'Repositorio', 'Notas'];
+                   'Cuenta Google', 'Repositorio', 'Notas',
+                   /* 0.17.0 · al final (R1): Tienda Básica o Tienda Panel. La
+                      escribe `conectar` al registrar la tienda. */
+                   'Producto',
+                   /* 0.20.1 · al final (R1) otra vez: el anillo de actualización
+                      (0 pruebas · 1 primeras · 2 todas). Vive en `flota.json`,
+                      que es de un repositorio privado; aquí se ve sin abrir
+                      GitHub (bitácora 88). */
+                   'Anillo'];
 
 /* Las columnas de Métricas, cada una con de dónde sale y cómo se ve. Están
    así y no como dos listas paralelas porque una lista de rótulos y otra de
@@ -195,12 +203,15 @@ var PLANES  = ['Básico', 'Estándar', 'Completo', 'Cortesía'];
 
 /* La paleta del panel. Sobria a propósito: esto no es la tienda, es la
    herramienta de trabajo de quien la vende. */
-var VERDE  = '#14472B';
-var ROJO   = '#B3261E';
-var AMBAR  = '#8A6100';
-var GRIS   = '#6E6E6E';
-var LINEA  = '#E4E4E4';
-var FONDO  = '#F7F7F5';
+/* 0.17.0 · la misma tinta que el panel de las tiendas y el de la flota:
+   encabezados casi negros, un gris, un color por estado. */
+var TINTA  = '#18181B';
+var VERDE  = '#067647';
+var ROJO   = '#B42318';
+var AMBAR  = '#93370D';
+var GRIS   = '#71717A';
+var LINEA  = '#E7E7EA';
+var FONDO  = '#FAFAFA';
 
 var ANCHO_BARRA = 20;
 
@@ -210,11 +221,13 @@ var ANCHO_BARRA = 20;
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Panel')
+    .addItem('Abrir el portal',              'abrirPortal')
     .addItem('Actualizar todas las tiendas', 'actualizar')
     .addItem('Enviarme el resumen ahora',    'enviarResumenAhora')
     .addItem('Cobros de este mes',           'verCobros')
     .addItem('Traer ejecuciones de GitHub',  'actualizarDespliegues')
     .addSeparator()
+    .addItem('Clave para el alta',           'claveParaElAlta')
     .addItem('Diagnóstico',                  'verDiagnostico')
     .addToUi();
 }
@@ -234,7 +247,8 @@ function instalar() {
       'Cortesía', 0, 1, new Date(),
       'https://[la-tienda].[tu-cuenta].workers.dev/',
       '', '', '', 'laboratoriodigital/[repositorio]',
-      'Fila de ejemplo. Reemplázala: pega aquí la URL /exec y el token del maestro.'
+      'Fila de ejemplo. Reemplázala: pega aquí la URL /exec y el token del maestro.',
+      'Tienda Panel', 2
     ]]);
   }
 
@@ -349,8 +363,10 @@ function leerTiendas() {
       servicio:  String(f[10] || '').trim().replace(/\?.*$/, ''),
       token:     String(f[11] || '').trim(),
       cuenta:    String(f[12] || '').trim(),
-      repo:      String(f[13] || '').trim(),
-      notas:     String(f[14] || '').trim()
+      repo:      repoNormalizado(f[13]) || String(f[13] || '').trim(),
+      notas:     String(f[14] || '').trim(),
+      producto:  String(f[15] || '').trim(),
+      anillo:    String(f[16] === undefined || f[16] === null ? '' : f[16]).trim()
     };
   }).filter(function (t) { return t.comercio; });
 }
@@ -365,6 +381,14 @@ function actualizar() {
   });
 
   var datos = consultar(vivas);
+  /* 0.20.0 · LA DIRECCIÓN LA DICE LA TIENDA, NO ESTA HOJA (bitácora 83). La
+     columna Sitio la escribió `conectar` el día del alta; si después el
+     comercio se mudó a su dominio propio, aquí seguía la vieja y el botón «Ver
+     la tienda» del portal llevaba a la dirección de antes. La tienda sabe cuál
+     es la suya —es su `sitio_url`, la misma con la que se hornea el canónico—,
+     así que se copia aquí y queda anotado. Es la regla de siempre: un dato,
+     una fuente (patrón 2). */
+  sincronizarSitios(datos);
   pintarMetricas(datos);
   pintarTablero(todas, datos);
 
@@ -382,6 +406,25 @@ function actualizar() {
 // =============================================================================
 // MÉTRICAS
 // =============================================================================
+
+/* La dirección que dice cada tienda de sí misma, escrita en su fila. No toca
+   nada más: si la tienda no contesta o no tiene `sitio_url`, la fila se queda
+   como está. */
+function sincronizarSitios(datos) {
+  var t = hoja(H_TIENDAS, COL_TIENDAS);
+  var cambios = [];
+  (datos || []).forEach(function (d) {
+    if (!d || !d.ok || !d.tienda || !d.tienda.linea) return;
+    var suyo = String(d.sitio || '').trim().replace(/\/+$/, '');
+    if (!/^https?:\/\//i.test(suyo)) return;
+    var fila = String(d.tienda.sitio || '').trim().replace(/\/+$/, '');
+    if (fila.toLowerCase() === suyo.toLowerCase()) return;
+    t.getRange(d.tienda.linea, 10).setValue(suyo);
+    cambios.push(d.tienda.comercio + ': ' + (fila || '(vacío)') + ' → ' + suyo);
+  });
+  if (cambios.length) registrar('Dirección actualizada desde la tienda — ' + cambios.join(' · '));
+  return cambios;
+}
 
 function pintarMetricas(datos) {
   var h = hoja(H_METRICAS, COL_METRICAS);
@@ -574,7 +617,7 @@ function formatoTablero(h, L) {
    .setVerticalAlignment('middle');
 
   // Título
-  h.getRange(1, 1, 1, 3).merge().setBackground(VERDE).setFontColor('#FFFFFF')
+  h.getRange(1, 1, 1, 3).merge().setBackground(TINTA).setFontColor('#FFFFFF')
    .setFontSize(14).setFontWeight('bold').setHorizontalAlignment('left');
   h.setRowHeight(1, 40);
 
@@ -585,7 +628,7 @@ function formatoTablero(h, L) {
 
     if (esTitulo) {
       h.getRange(fila, 1, 1, 3).merge().setBackground(FONDO)
-       .setFontWeight('bold').setFontColor(VERDE).setFontSize(11);
+       .setFontWeight('bold').setFontColor(TINTA).setFontSize(11);
       h.setRowHeight(fila, 28);
     } else if (a || L[i][1] !== '') {
       h.getRange(fila, 3).setFontColor(GRIS).setFontSize(9);
@@ -1074,6 +1117,10 @@ function presentar() {
   t.setColumnWidth(7, 120); t.setColumnWidth(8, 100); t.setColumnWidth(9, 100);
   t.setColumnWidth(10, 260); t.setColumnWidth(11, 320); t.setColumnWidth(12, 230);
   t.setColumnWidth(13, 220); t.setColumnWidth(14, 200); t.setColumnWidth(15, 320);
+  t.setColumnWidth(16, 130); t.setColumnWidth(17, 80);
+  /* 0.17.0 · sin cuadrícula y en una sola fuente: se lee como un tablero. */
+  t.setHiddenGridlines(true);
+  t.getRange(1, 1, Math.max(t.getLastRow(), 2), COL_TIENDAS.length).setFontFamily('Arial');
 
   var n = Math.max(t.getLastRow() - 1, 50);
   lista(t, 1, n, ESTADOS, 'Activa, En montaje, Pausada o Cancelada');
@@ -1119,7 +1166,7 @@ function rotulos(h, lista) {
 }
 
 function encabezado(h, ancho) {
-  h.getRange(1, 1, 1, ancho).setBackground(VERDE).setFontColor('#FFFFFF')
+  h.getRange(1, 1, 1, ancho).setBackground(TINTA).setFontColor('#FFFFFF')
    .setFontWeight('bold').setFontSize(10).setVerticalAlignment('middle')
    .setWrap(true);
   h.setRowHeight(1, 34);
@@ -1153,6 +1200,260 @@ function filas(nombre) {
   var h = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nombre);
   if (!h || h.getLastRow() < 2) return [];
   return h.getRange(2, 1, h.getLastRow() - 1, h.getLastColumn()).getValues();
+}
+
+// =============================================================================
+// 0.17.0 · LAS TIENDAS NUEVAS SE REGISTRAN SOLAS
+// =============================================================================
+/* Cada tienda nueva era una fila escrita a mano en Tiendas —el servicio y el
+   token copiados de un diagnóstico—, y la que no se escribía no existía para
+   el panel: sin métricas, sin resumen, sin cobros. Ahora la escribe `conectar`
+   (repositorio de servicio) en el mismo momento en que conecta la tienda con
+   su hoja: tiene el servicio, el token, el repositorio, el comercio, la
+   dirección y el producto.
+
+   Para eso esta hoja se implementa UNA VEZ como aplicación web (Ejecutar como:
+   yo · Acceso: cualquiera), y su URL y la clave de abajo van a `tiendas` como
+   PANEL_URL y PANEL_CLAVE. Sin la clave no entra nada. Por repositorio: si ya
+   hay una fila con ese repositorio se actualiza (servicio, token, dirección,
+   producto), y si no, se agrega «En montaje». Lo que el operador escribió —
+   contacto, plan, precio, notas— no se toca nunca. */
+// =============================================================================
+// EL PORTAL (0.18.0 · bitácora 78)
+// -----------------------------------------------------------------------------
+// «No veo por dónde se entra» — y era verdad. Las cifras estaban en tres
+// pestañas y las acciones en la pestaña Actions de otro repositorio; para
+// mirar una tienda había que saber en qué columna estaba cada cosa. El portal
+// es UNA pantalla: cada tienda con lo que importa y sus enlaces, y arriba las
+// cuatro acciones de la flota. Se abre desde el menú de esta hoja —Panel ›
+// Abrir el portal—, así que no hay nada que desplegar ni que proteger: quien
+// puede abrir esta hoja ya es quien puede ver esto.
+//
+// LOS DATOS SON LOS DE LAS PESTAÑAS, no una consulta nueva. Abrir el portal no
+// molesta a ninguna tienda: pinta lo que dejó la última corrida de
+// «Actualizar todas las tiendas» (patrón 2: un solo sitio lee de las tiendas).
+// El día que se sirva en una dirección —detrás de Cloudflare Access, con el
+// panel estático de `tiendas`— será esta misma función la que lo escriba.
+// =============================================================================
+
+function abrirPortal() {
+  var html = HtmlService.createHtmlOutput(
+      portalHtml(leerTiendas(), filas(H_METRICAS), { flota: repoDeLaFlota() }))
+    .setWidth(1040).setHeight(720);
+  try { SpreadsheetApp.getUi().showModalDialog(html, 'Portal de tiendas'); }
+  catch (e) { console.log('El portal se abre desde la hoja: menú Panel › Abrir el portal.'); }
+  return true;
+}
+
+/* EL REPOSITORIO, COMO LO ESCRIBA QUIEN LO ESCRIBA. En la columna Repositorio
+   cabe lo que uno pega del navegador —`https://github.com/dueño/tienda`—, con
+   `.git` al final o con una barra de más. `conectar` escribe la forma corta,
+   pero una fila puesta a mano no tiene por qué. Y de ahí salían las
+   direcciones del portal: `github.com/https:/tiendas/actions/…`, que es
+   exactamente el enlace roto que se vio (bitácora 79). Se normaliza al leer,
+   una sola vez, y lo que no sea `dueño/nombre` no es un repositorio. */
+function repoNormalizado(v) {
+  var t = String(v === undefined || v === null ? '' : v).trim()
+    .replace(/^https?:\/\/(www\.)?github\.com\//i, '')
+    .replace(/^\/+|\/+$/g, '')
+    .replace(/\.git$/i, '');
+  return /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(t) ? t : '';
+}
+
+/* EL REPOSITORIO DE LA FLOTA, que es donde viven `alta`, `conectar` y `flota`.
+   Sale de las tiendas ya anotadas —la flota de otro operador tiene otro
+   dueño—, saltándose la fila de ejemplo, y se puede fijar a mano en las
+   propiedades del script (`REPO_FLOTA`) cuando no se llame `tiendas`. */
+function repoDeLaFlota() {
+  var puesto = '';
+  try { puesto = repoNormalizado(
+    PropertiesService.getScriptProperties().getProperty('REPO_FLOTA')); } catch (e) { }
+  if (puesto) return puesto;
+  var dueno = '';
+  leerTiendas().forEach(function (t) {
+    if (dueno || !t.repo || t.repo.indexOf('[') !== -1) return;
+    dueno = t.repo.split('/')[0];
+  });
+  return (dueno || 'laboratoriodigital') + '/tiendas';
+}
+
+function escaparPortal(t) {
+  return String(t === undefined || t === null ? '' : t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/* La fila de Métricas de una tienda, por comercio: la primera columna de esa
+   pestaña es el comercio, que es la misma clave que usa Tiendas. */
+function metricaDe(metricas, comercio) {
+  var fila = (metricas || []).filter(function (f) {
+    return String(f[0] || '').trim() === comercio;
+  })[0];
+  if (!fila) return null;
+  var m = {};
+  COL_METRICAS.forEach(function (r, i) { m[r] = fila[i]; });
+  return m;
+}
+
+function portalHtml(tiendas, metricas, ctx) {
+  var flota = repoNormalizado((ctx && (ctx.flota || (ctx.dueno && ctx.dueno + '/tiendas'))) || '') ||
+              'laboratoriodigital/tiendas';
+  var acciones = 'https://github.com/' + flota + '/actions/workflows/';
+  /* Ni las canceladas ni la fila de ejemplo que deja `instalar`: sus enlaces
+     llevarían a `github.com/laboratoriodigital/[repositorio]`. */
+  var vivas = (tiendas || []).filter(function (t) {
+    return t.estado !== 'Cancelada' && t.comercio.charAt(0) !== '[';
+  });
+  var ingreso = vivas.filter(function (t) { return t.estado === 'Activa'; })
+                     .reduce(function (a, t) { return a + (t.precio || 0); }, 0);
+
+  var css = 'body{margin:0;background:' + FONDO + ';color:' + TINTA + ';' +
+    'font:14px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif}' +
+    '.c{max-width:980px;margin:0 auto;padding:18px 16px 40px}' +
+    'h1{font-size:19px;margin:0 0 2px;font-weight:650}' +
+    '.g{color:' + GRIS + ';font-size:12.5px;margin:0 0 16px}' +
+    '.b{display:inline-block;margin:0 6px 8px 0;padding:7px 12px;border:1px solid ' + LINEA + ';' +
+    'border-radius:8px;background:#FFF;color:' + TINTA + ';text-decoration:none;font-size:12.5px}' +
+    '.b:hover{border-color:' + TINTA + '}' +
+    '.t{background:#FFF;border:1px solid ' + LINEA + ';border-radius:10px;padding:14px 16px;margin:10px 0}' +
+    '.t h2{font-size:15px;margin:0;font-weight:600;display:inline-block}' +
+    '.e{font-size:11.5px;border-radius:999px;padding:2px 9px;margin-left:8px;vertical-align:2px}' +
+    '.n{display:flex;flex-wrap:wrap;gap:18px;margin:10px 0 8px}' +
+    '.n div{font-size:12.5px;color:' + GRIS + '}' +
+    '.n b{display:block;font-size:16px;color:' + TINTA + ';font-weight:600;' +
+    'font-variant-numeric:tabular-nums}' +
+    '.f{color:' + GRIS + ';font-size:12px;margin:2px 0 0}' +
+    '.r{color:' + ROJO + '}.a{color:' + AMBAR + '}.v{color:' + VERDE + '}';
+
+  var partes = ['<!DOCTYPE html><meta charset="utf-8"><style>' + css + '</style><div class="c">'];
+  partes.push('<h1>Portal de tiendas</h1>');
+  partes.push('<p class="g">' + vivas.length + ' tienda(s) · ' +
+              tiendas.filter(function (t) { return t.estado === 'Activa'; }).length + ' activas · ' +
+              'ingreso mensual ' + Math.round(ingreso).toLocaleString('es-CO') + ' · ' +
+              'las cifras son las de la última actualización de esta hoja.</p>');
+  partes.push('<p>' +
+    '<a class="b" href="' + acciones + 'alta.yml" target="_blank">Dar de alta una tienda</a>' +
+    '<a class="b" href="' + acciones + 'conectar.yml" target="_blank">Conectar una tienda con su hoja</a>' +
+    '<a class="b" href="' + acciones + 'flota.yml" target="_blank">Actualizar la flota</a>' +
+    '<a class="b" href="https://github.com/' + flota + '" target="_blank">' + escaparPortal(flota) + '</a>' +
+    '</p>');
+
+  if (!vivas.length) {
+    partes.push('<div class="t"><h2>Todavía no hay tiendas</h2><p class="f">' +
+      'Cada tienda aparece sola aquí cuando se corre <b>conectar</b>, si este panel tiene ' +
+      'su clave (menú Panel › Clave para el alta).</p></div>');
+  }
+
+  vivas.forEach(function (t) {
+    var m = metricaDe(metricas, t.comercio) || {};
+    var color = t.estado === 'Activa' ? VERDE : (t.estado === 'Pausada' ? AMBAR : GRIS);
+    var sinTerminar = String(m['Sin terminar'] || '').trim();
+    var errores = Number(m['Errores'] || 0);
+    partes.push('<div class="t">');
+    partes.push('<h2>' + escaparPortal(t.comercio) + '</h2>' +
+      '<span class="e" style="background:' + FONDO + ';border:1px solid ' + LINEA + ';color:' + color + '">' +
+      escaparPortal(t.estado || '—') + '</span>' +
+      '<span class="e" style="color:' + GRIS + '">' + escaparPortal(t.producto || '—') + '</span>' +
+      (t.anillo === '' ? '' : '<span class="e" style="color:' + GRIS + '" title="Orden en que recibe las versiones nuevas: 0 pruebas · 1 primeras · 2 todas">anillo ' +
+        escaparPortal(t.anillo) + '</span>'));
+    partes.push('<div class="n">' +
+      '<div>Ventas del mes<b>' + escaparPortal(m['Ventas del mes'] === undefined ? '—' : m['Ventas del mes']) + '</b></div>' +
+      '<div>Pedidos<b>' + escaparPortal(m['Pedidos del mes'] === undefined ? '—' : m['Pedidos del mes']) + '</b></div>' +
+      '<div>Por confirmar<b class="a">' + escaparPortal(m['Por confirmar'] === undefined ? '—' : m['Por confirmar']) + '</b></div>' +
+      '<div>Publicados<b>' + escaparPortal(m['Publicados'] === undefined ? '—' : m['Publicados']) + '</b></div>' +
+      '<div>Versión<b>' + escaparPortal(m['Versión'] || '—') + '</b></div>' +
+      '<div>Último respaldo<b>' + escaparPortal(m['Último respaldo'] || '—') + '</b></div>' +
+      '</div>');
+    if (sinTerminar) partes.push('<p class="f a">Sin terminar: ' + escaparPortal(sinTerminar) + '</p>');
+    if (errores) partes.push('<p class="f r">' + errores + ' error(es) anotados en su hoja.</p>');
+    var enlaces = [];
+    /* El del propio maestro manda sobre el de la fila: es el que la tienda
+       está usando de verdad (bitácora 83). */
+    var suyo = String(m['Sitio'] || '').trim();
+    var deLaFila = String(t.sitio || '').trim();
+    var elegido = /^https?:\/\//i.test(suyo) ? suyo : deLaFila;
+    var sitio = /^https?:\/\//i.test(elegido) ? elegido.replace(/\/+$/, '') : '';
+    if (sitio) enlaces.push('<a class="b" href="' + escaparPortal(sitio) + '" target="_blank">Ver la tienda</a>');
+    if (sitio && t.producto !== 'Tienda Básica') {
+      enlaces.push('<a class="b" href="' + escaparPortal(sitio + '/admin.html') +
+                   '" target="_blank">Su panel</a>');
+    }
+    var repo = repoNormalizado(t.repo);
+    if (repo) {
+      enlaces.push('<a class="b" href="https://github.com/' + repo + '" target="_blank">Repositorio</a>');
+      enlaces.push('<a class="b" href="https://github.com/' + repo +
+                   '/actions/workflows/montaje.yml" target="_blank">Publicar / actualizar</a>');
+      enlaces.push('<a class="b" href="https://github.com/' + repo +
+                   '/actions/workflows/restaurar.yml" target="_blank">Volver atrás</a>');
+    } else if (t.repo) {
+      enlaces.push('<span class="b" style="color:' + AMBAR + '">Repositorio mal escrito: ' +
+                   escaparPortal(t.repo) + '</span>');
+    }
+    partes.push('<p style="margin:8px 0 0">' + enlaces.join('') + '</p>');
+    if (t.notas) partes.push('<p class="f">' + escaparPortal(t.notas) + '</p>');
+    partes.push('</div>');
+  });
+
+  partes.push('<p class="g">Los datos de cada tienda se restauran desde el editor de SU maestro ' +
+              '(A5_respaldos y A6_restaurarDatos); el sitio y la versión, con «Volver atrás».</p>');
+  partes.push('</div>');
+  return partes.join('');
+}
+
+function claveParaElAlta() {
+  var p = PropertiesService.getScriptProperties();
+  var clave = 'alta-' + Utilities.getUuid().replace(/-/g, '');
+  p.setProperty('CLAVE_ALTA', clave);
+  registrar('Clave nueva para el alta. La anterior dejó de servir.');
+  var texto = 'CLAVE PARA EL ALTA\n\n' + clave + '\n\n' +
+    'Va en laboratoriodigital/tiendas › Settings › Secrets › Actions:\n' +
+    '  PANEL_CLAVE = esta clave\n' +
+    '  PANEL_URL   = la URL /exec de ESTA hoja (Implementar › Aplicación web,\n' +
+    '                Ejecutar como: yo · Acceso: cualquiera)\n\n' +
+    'Con eso, cada tienda que se conecta aparece sola en Tiendas.\n' +
+    'Se ve una vez: si la pierdes, genera otra y cámbiala en tiendas.';
+  try { SpreadsheetApp.getUi().alert(texto); } catch (e) { }
+  console.log(texto);
+  return clave;
+}
+
+function doPost(e) {
+  var d = {};
+  try { d = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (x) { }
+  return ContentService.createTextOutput(JSON.stringify(atenderAlta(d)))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function atenderAlta(d) {
+  var clave = String(PropertiesService.getScriptProperties().getProperty('CLAVE_ALTA') || '');
+  if (!clave || String(d.clave || '') !== clave) return { ok: false, error: 'Clave que no corresponde.' };
+  if (d.a !== 'registrar_tienda') return { ok: false, error: 'Acción desconocida.' };
+  var repo = String(d.repo || '').trim();
+  var servicio = String(d.servicio || '').trim();
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return { ok: false, error: 'Falta el repositorio.' };
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(servicio)) return { ok: false, error: 'El servicio no es una URL /exec.' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var t = hoja(H_TIENDAS, COL_TIENDAS);
+    var existentes = leerTiendas();
+    var ya = existentes.filter(function (x) { return x.repo.toLowerCase() === repo.toLowerCase(); })[0];
+    var sitio = String(d.sitio || '').trim(), token = String(d.token || '').trim(), producto = String(d.producto || '').trim();
+    /* 0.20.1 · El anillo lo manda `conectar` desde flota.json; si no viene, no
+       se inventa: la celda se queda como esté. */
+    var anillo = String(d.anillo === undefined || d.anillo === null ? '' : d.anillo).trim();
+    if (ya) {
+      t.getRange(ya.linea, 10, 1, 3).setValues([[sitio || ya.sitio, servicio, token || ya.token]]);
+      if (producto) t.getRange(ya.linea, 16).setValue(producto);
+      if (anillo !== '') t.getRange(ya.linea, 17).setValue(anillo);
+      registrar('conectar actualizó ' + (ya.comercio || repo) + ' (servicio y token).');
+      return { ok: true, fila: ya.linea, nueva: false };
+    }
+    var fila = ['En montaje', String(d.comercio || repo).trim(), '', '', '', '', 0, '', new Date(),
+                sitio, servicio, token, '', repo, 'La registró conectar.', producto, anillo];
+    t.appendRow(fila);
+    registrar('conectar registró ' + fila[1] + ' (' + repo + ').');
+    return { ok: true, fila: t.getLastRow(), nueva: true };
+  } finally { lock.releaseLock(); }
 }
 
 function registrar(texto) {

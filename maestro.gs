@@ -56,6 +56,20 @@
 // El ID de la hoja de cálculo del cliente. Va en la URL de la hoja, entre
 // /d/ y /edit.  https://docs.google.com/spreadsheets/d/AQUÍ_VA/edit
 var HOJA_ID = '';
+/* 0.17.0 · SI LA CONSTANTE LLEGA VACÍA, LA QUE GUARDÓ A0_instalar. La
+   aplicación web corre la VERSIÓN IMPLEMENTADA, no lo que hay en el editor: si
+   el ID se pegó después de implementar, el editor lo tiene y el diagnóstico
+   sale bien, pero la tienda —y `conectar`— contestan «Falta HOJA_ID» (bitácora
+   74). Las propiedades del script son de TODAS las versiones: A0_instalar,
+   que se corre con el ID puesto, lo deja allí, y desde entonces pegar el ID no
+   obliga a volver a implementar. */
+var HOJA_ID_DE_PROPIEDAD = false;
+if (!HOJA_ID) {
+  try { HOJA_ID = String(PropertiesService.getScriptProperties().getProperty('HOJA_ID') || ''); } catch (e) { }
+  /* 0.20.0 · El diagnóstico lo dice: funciona, pero solo desde la 0.17.0, y la
+     versión IMPLEMENTADA puede ser anterior. */
+  HOJA_ID_DE_PROPIEDAD = !!HOJA_ID;
+}
 
 /* ══════════════════════════════════════════════════════════════════════════
    LAS QUE SE EJECUTAN A MANO, JUNTAS Y EN ORDEN
@@ -91,6 +105,8 @@ function A3_rotarToken() { return rotarToken(); }
 
 /** A4 · Guardar una copia de la hoja ahora, sin esperar al domingo. */
 function A4_respaldoAhora() { return respaldoSemanal(); }
+
+/* A5 y A6 · las copias que hay y cómo volver a una: ver «VOLVER ATRÁS». */
 
 /* El token NO se escribe: lo inventa instalar() la primera vez y lo guarda en
    las propiedades del proyecto. Un paso manual menos, y uno donde además era
@@ -1230,7 +1246,12 @@ var CLAVES_DEL_PANEL = [
   /* 0.11.0 */
   { clave: 'f_avisame',            grupo: 'La venta',   tipo: 'sino',   rotulo: '«Avísame cuando llegue» en lo agotado' },
   { clave: 'catalogo_columnas',    grupo: 'La portada', tipo: 'opcion', rotulo: 'Productos por fila en computador',
-    opciones: ['3', '4', '5'] }
+    opciones: ['3', '4', '5'] },
+  /* 0.19.0 · AL FINAL (R1). La medición. Vacío = la tienda no carga NADA de
+     Google y no pone una sola cookie: es el valor de fábrica y es el que hace
+     que una tienda sin política de cookies siga siendo legal. */
+  { clave: 'analytics_id',         grupo: 'Google y WhatsApp', tipo: 'medicion',
+    rotulo: 'Google Analytics 4 (G-…)' }
 ];
 
 /* EL ORDEN EN QUE SE ENSEÑAN LOS GRUPOS. La lista de arriba solo crece al
@@ -1259,6 +1280,15 @@ function problemaDeValor(def, valor) {
   if (def.tipo === 'correo' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return 'Eso no parece un correo.';
   if (def.tipo === 'url' && !/^https:\/\/\S+$/.test(v)) return 'Una dirección completa, que empiece por https://';
   if (def.tipo === 'hora' && !(/^\d{1,2}$/.test(v) && Number(v) <= 23)) return 'Una hora de 0 a 23.';
+  /* 0.19.0 · El identificador de GA4, y no el de otra cosa. `UA-…` es Universal
+     Analytics, que Google apagó; `GTM-…` es Tag Manager, que carga lo que
+     alguien haya configurado allá y no cabe en esta política de seguridad. Un
+     valor que no es G- no se hornea: la tienda se publica sin medición, y el
+     panel dice por qué en vez de dejar una página muda. */
+  if (def.tipo === 'medicion' && !ANALITICA_VALIDA.test(v)) {
+    return 'El identificador de Google Analytics 4 se ve así: G-ABCD123456 ' +
+           '(Analytics › Administrar › Flujos de datos › Web). Vacío = sin medición.';
+  }
   return null;
 }
 
@@ -1698,10 +1728,26 @@ function dispararFlujo(archivo, entradas, quien) {
   }
   var codigo = res.getResponseCode();
   if (codigo === 204) return { ok: true, codigo: 204 };
+  /* 0.20.1 · EL 404 DE GITHUB MIENTE A PROPÓSITO (bitácora 87). Cuando un
+     token de grano fino no alcanza a ver un repositorio, GitHub contesta 404 y
+     no 403: no confirma que exista. El mensaje decía «no encuentro el
+     repositorio, o el permiso no lo incluye» y mandaba a revisar el nombre,
+     que casi siempre está bien. La causa de verdad es otra, y tiene nombre: el
+     token se creó sobre «Only select repositories» ANTES de que esta tienda
+     existiera, así que no la incluye — el alta crea repositorios nuevos, y un
+     token de lista fija envejece con cada tienda. */
   var porQue =
-    codigo === 401 ? 'El permiso no sirve o se venció. Hay que hacer uno nuevo.' :
+    codigo === 401 ? 'El permiso de esta tienda no sirve o se venció. Haz uno nuevo ' +
+                     '(de grano fino, sobre TODOS los repositorios del dueño, solo Actions: ' +
+                     'Read and write), cámbialo en el secreto `DISPARO_TOKEN` de `tiendas` y ' +
+                     'vuelve a correr `conectar`: desde la 0.20.2 el vencido se reemplaza solo.' :
     codigo === 403 ? 'El permiso existe pero no alcanza. Le falta Actions: Read and write.' :
-    codigo === 404 ? 'No encuentro el repositorio ' + g.repo + ', o el permiso no lo incluye.' :
+    codigo === 404 ? 'El permiso de esta tienda no alcanza a ver ' + g.repo + '. ' +
+                     'Casi siempre es que el token se hizo sobre «Only select repositories» ' +
+                     'y esta tienda es posterior: hazlo sobre TODOS los repositorios del ' +
+                     'dueño (solo Actions: Read and write) y vuelve a correr `conectar`. ' +
+                     'Si el repositorio de verdad no existe o se renombró, corrígelo en ' +
+                     'Configuración › repositorio.' :
     codigo === 422 ? 'GitHub aceptó la petición pero no encontró la rama main.' :
                      'GitHub contestó ' + codigo + '.';
   anotarError(quien + ' falló con ' + codigo, String(res.getContentText()).slice(0, 200));
@@ -1776,7 +1822,7 @@ function atenderPublicar(p) {
    con el mismo permiso; si el permiso no alcanza al repositorio de la semilla,
    se dice «no lo sé», no «estás al día».
    ══════════════════════════════════════════════════════════════════════════ */
-var VERSION_TIENDA = '0.16.0';
+var VERSION_TIENDA = '0.20.8';
 var SEMILLA_REPO = 'laboratoriodigital/tienda';
 
 function versionMayor(a, b) {
@@ -1823,15 +1869,43 @@ function atenderActualizacion() {
    repositorio de servicio. NO PISA uno que ya esté puesto —puede ser uno más
    acotado que alguien hizo a propósito— salvo que se pida `forzar`. Solo se
    acepta algo con forma de token de GitHub, y del token solo se dice si quedó. */
+/* 0.20.2 · UN PERMISO MUERTO NO SE RESPETA (bitácora 89). «No pisa uno ya
+   puesto» era la regla correcta para no quitarle a una tienda un token bueno
+   que alguien puso a mano. Pero el día que se rota `DISPARO_TOKEN` —porque
+   venció, o porque el anterior no alcanzaba a las tiendas nuevas— volver a
+   correr `conectar` no servía de nada: la tienda se quedaba con el viejo y
+   seguía contestando «el permiso no sirve o se venció», que es exactamente el
+   síntoma que se estaba intentando curar.
+
+   Ahora, antes de respetarlo, se COMPRUEBA: se le pregunta a GitHub por el
+   repositorio de esta tienda con el token que ya está. Si contesta, se
+   respeta; si no —401, 403, 404 o ni siquiera contesta—, el que llega lo
+   reemplaza. Un token que no abre la puerta no es un token que haya que
+   cuidar. */
+function permisoGuardadoSirve() {
+  var g = repositorioYPermiso();
+  if (!g.tk) return false;
+  if (!g.repoOk) return true;   /* sin repositorio escrito no se puede juzgar: no se toca */
+  try {
+    var res = UrlFetchApp.fetch('https://api.github.com/repos/' + g.repo,
+      { method: 'get', headers: cabecerasGitHub(g.tk), muteHttpExceptions: true });
+    return res.getResponseCode() === 200;
+  } catch (e) { return false; }
+}
+
 function atenderPermiso(p) {
   var tk = String(p.tk || '').trim();
   if (!/^(github_pat_|ghp_)[A-Za-z0-9_]{20,}$/.test(tk)) return { ok: false, error: 'Eso no parece un token de GitHub.' };
   var props = propiedades();
   var habia = String(props.getProperty('GITHUB_TOKEN') || '');
-  if (habia && String(p.forzar || '') !== 'si') return { ok: true, puesto: false, yaEstaba: true };
+  var forzado = String(p.forzar || '') === 'si';
+  if (habia && habia === tk) return { ok: true, puesto: false, yaEstaba: true, mismo: true };
+  var servia = habia ? permisoGuardadoSirve() : false;
+  if (habia && servia && !forzado) return { ok: true, puesto: false, yaEstaba: true, servia: true };
   props.setProperty('GITHUB_TOKEN', tk);
-  anotarSeguridad('Permiso de GitHub puesto desde el alta (conectar).', habia ? 'reemplazó al anterior' : 'no había ninguno');
-  return { ok: true, puesto: true, yaEstaba: !!habia };
+  anotarSeguridad('Permiso de GitHub puesto desde el alta (conectar).',
+    !habia ? 'no había ninguno' : (forzado ? 'se forzó el reemplazo' : 'el anterior ya no servía'));
+  return { ok: true, puesto: true, yaEstaba: !!habia, servia: servia, reemplazado: !!habia };
 }
 
 function dispararActualizacion() {
@@ -1850,7 +1924,7 @@ function atenderActualizar(p) {
   });
 }
 
-var VERSION = '2026-09-22-4';
+var VERSION = '2026-09-22-8';
 
 /* Antes esto era getActiveSpreadsheet(): el script vivía dentro de la hoja.
    Ahora abre la del cliente por su ID, y esa es toda la diferencia. */
@@ -1858,7 +1932,9 @@ function elLibro() {
   if (!HOJA_ID) {
     throw new Error(
       'Falta HOJA_ID. Ábrela en Google Sheets, copia lo que va entre /d/ y ' +
-      '/edit en la URL, y pégalo arriba en la constante HOJA_ID.');
+      '/edit en la URL, pégalo arriba en la constante HOJA_ID y ejecuta A0_instalar. ' +
+      'Si ya estaba pegado: la versión IMPLEMENTADA es anterior; Implementar › ' +
+      'Gestionar implementaciones › lápiz › Versión: Nueva versión.');
   }
   return SpreadsheetApp.openById(HOJA_ID);
 }
@@ -1968,6 +2044,8 @@ function instalar() {
       'Script y pega el código ALLÍ. Ese proyecto sí queda unido a la hoja.');
   }
   console.log('Instalando en la hoja: ' + libro.getName());
+  /* 0.17.0 · el ID queda también en las propiedades (ver arriba, HOJA_ID). */
+  try { propiedades().setProperty('HOJA_ID', String(HOJA_ID)); } catch (e) { }
   var cat = hoja(H_CATALOGO, ENCABEZADO_CATALOGO);
   asegurarColumnas(H_CATALOGO, ENCABEZADO_CATALOGO);   // hojas viejas: agrega lo que falte
   if (cat.getLastRow() < 2) {
@@ -2139,6 +2217,52 @@ function conEsquema(u) {
   return /^https?:\/\//i.test(s) ? s : 'https://' + s.replace(/^\/+/, '');
 }
 
+/* 0.19.0 · MEDIR, DE LA MANERA MÁS SENCILLA QUE HAY (decisión 23).
+   ---------------------------------------------------------------------------
+   Una clave en la hoja —`analytics_id`— y el fragmento oficial de Google
+   horneado en el <head>. Ni etiquetas de terceros, ni gestor de etiquetas, ni
+   un archivo más que cargar: la tienda pide un script a Google y nada más.
+
+   VACÍO ES EL VALOR DE FÁBRICA, y significa exactamente nada: sin script, sin
+   cookies, sin conexiones a Google, y la política de seguridad de esa tienda
+   ni siquiera nombra a googletagmanager.com. Una tienda que no mide no tiene
+   que explicar que mide.
+
+   Y LA COSTURA PARA EL MEDIDOR PROPIO: la página no llama a `gtag` por ahí
+   suelto. Llama a `medir(evento, datos)`, que hoy se lo pasa a Google si está
+   y se calla si no. El día que tengamos nuestro propio recolector, se le suma
+   una línea a ESA función y los puntos de medida ya están puestos. */
+var ANALITICA_VALIDA = /^G-[A-Z0-9]{4,20}$/i;
+
+function idDeAnalitica(c) {
+  var v = String((c || {}).analytics_id || '').trim();
+  return ANALITICA_VALIDA.test(v) ? v.toUpperCase() : '';
+}
+
+/* Los hosts que hacen falta para GA4, y solo cuando se mide:
+     www.googletagmanager.com   el script (script-src) y su pixel (img-src)
+     *.google-analytics.com     donde se manda la medida (connect-src, img-src)
+     *.analytics.google.com     la señal de Google Signals, si se enciende allá */
+function cspDeAnalitica(id) {
+  if (!id) return { script: '', conecta: '', imagen: '' };
+  return { script: ' https://www.googletagmanager.com',
+           conecta: ' https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com',
+           imagen: ' https://*.google-analytics.com https://www.googletagmanager.com' };
+}
+
+/* El fragmento oficial, escrito una sola vez. `anonymize_ip` no existe en GA4
+   —las IP se anonimizan siempre—, así que no se escribe: una opción que no
+   hace nada es una promesa que nadie puede comprobar. */
+function bloqueDeAnalitica(id) {
+  if (!id) return [];
+  return [
+    '<!-- Medición: Google Analytics 4. La enciende la clave analytics_id de la hoja. -->',
+    '<script async src="https://www.googletagmanager.com/gtag/js?id=' + id + '"></script>',
+    '<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}' +
+      "gtag('js',new Date());gtag('config','" + id + "');</script>"
+  ];
+}
+
 function generarConfiguracion() {
   var c = leerConfiguracion();
   var url = conEsquema(c.sitio_url).replace(/\/+$/, '') + '/';
@@ -2155,15 +2279,19 @@ function generarConfiguracion() {
      y cambiar de modo en la hoja no puede exigir volver a hornearla — con la
      pasarela encendida y la política vieja, el botón de pagar no abriría nada
      y el navegador ni siquiera lo diría en la página. */
-  var csp = "default-src 'none'; script-src 'unsafe-inline' https://checkout.bold.co; " +
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-            "font-src https://fonts.gstatic.com; " +
-            "img-src 'self' data:" + (hosts.length ? ' https://' + hosts.join(' https://') : '') + '; ' +
+  var medicion = idDeAnalitica(c);
+  var cspMed = cspDeAnalitica(medicion);
+  var csp = "default-src 'none'; script-src 'unsafe-inline' https://checkout.bold.co" + cspMed.script + '; ' +
+            /* 0.20.0 · Ya no se carga tipografía de fuera (bitácora 84): la
+               página usa la pila del sistema. Un permiso que sobra es una
+               puerta abierta sin nadie detrás. */
+            "style-src 'self' 'unsafe-inline'; " +
+            "img-src 'self' data:" + (hosts.length ? ' https://' + hosts.join(' https://') : '') + cspMed.imagen + '; ' +
             /* 'self' hace falta desde que la vitrina lee su propio catalogo.json. Sin
                él la petición se bloquea sin decir por qué: la CSP no lanza un error de
                red, simplemente no deja salir, y la página cae al respaldo como si la
                hoja no hubiera contestado. */
-            "connect-src 'self' https://script.google.com https://script.googleusercontent.com; " +
+            "connect-src 'self' https://script.google.com https://script.googleusercontent.com" + cspMed.conecta + '; ' +
             "form-action 'none'; base-uri 'none'";
 
   var bloque = [
@@ -2187,9 +2315,10 @@ function generarConfiguracion() {
     '<link rel="canonical" href="' + url + '">',
     '<meta name="theme-color" content="' + (c.color_principal || '#D0211C') + '">',
     '<link rel="icon" href="' + icono + '">',
-    '<link rel="apple-touch-icon" href="' + icono + '">',
+    '<link rel="apple-touch-icon" href="' + icono + '">'
+  ].concat(bloqueDeAnalitica(medicion)).concat([
     '<!-- ═══ FIN DE LA CONFIGURACIÓN ═══ -->'
-  ].join('\n');
+  ]).join('\n');
 
   var js = [
     'const SCRIPT_URL     = "' + (urlLista() || 'PEGA_AQUÍ_LA_URL_QUE_TERMINA_EN_/exec') + '";',
@@ -2391,6 +2520,18 @@ function diagnostico(mostrarSecretos) {
   decir('Implementar > Gestionar implementaciones > lápiz > Versión: Nueva.');
   decir('Hoja: ' + libro.getName());
   decir('URL:  ' + libro.getUrl());
+  /* 0.20.0 · DE DÓNDE SALIÓ LA HOJA. Si la constante llegó vacía y el ID vino
+     de las propiedades, esta versión funciona pero la IMPLEMENTADA puede ser
+     anterior a la 0.17.0 y no saber hacerlo (bitácora 74). Decirlo aquí es lo
+     que evita el «Falta HOJA_ID» de `conectar` con el diagnóstico en verde. */
+  if (HOJA_ID_DE_PROPIEDAD) {
+    marcar('REVISAR');
+    decir('');
+    decir('La constante HOJA_ID está VACÍA: el ID se leyó de las propiedades.');
+    decir('Funciona, pero solo desde la 0.17.0. Si la tienda o `conectar` dicen');
+    decir('«Falta HOJA_ID», publica una versión nueva: Implementar > Gestionar');
+    decir('implementaciones > lápiz > Versión: Nueva versión.');
+  }
 
   // ── 2 ────────────────────────────────────────────────────────────────────
   /* VA AQUÍ ARRIBA A PROPÓSITO. Si la tienda no está terminada, todo lo demás
@@ -2458,6 +2599,39 @@ function diagnostico(mostrarSecretos) {
     decir('el de ahora lleva un token que solo sirve para el menú.');
   } else {
     decir('OK   el stub usa el token del menú, que solo abre el menú.');
+  }
+
+  /* 0.20.0 · ¿QUÉ VERSIÓN DEL STUB ESTÁ PEGADA? No se puede leer el código de
+     la hoja desde aquí, pero el stub dice de qué versión es en cada petición y
+     `atenderMenu` lo anota. Un stub viejo no se queja: ofrece un menú que ya
+     no existe hasta que alguien toca una opción. */
+  var stubHoja = stubVisto();
+  if (!stubHoja) {
+    marcar('REVISAR');
+    decir('');
+    decir('Nadie ha abierto todavía el menú de esta hoja: no sé qué stub tiene.');
+    decir('Ejecuta A1_generarStub, pégalo en la hoja y abre el menú una vez.');
+  } else if (stubHoja !== VERSION) {
+    marcar('REVISAR');
+    decir('');
+    decir('El stub pegado en la hoja es de la versión ' + stubHoja + ' y este');
+    decir('maestro es ' + VERSION + '. Ejecuta A1_generarStub y pega el nuevo:');
+    decir('si esta versión agregó una opción al menú, la hoja todavía no la tiene.');
+  } else {
+    decir('OK   el stub pegado en la hoja es de esta misma versión.');
+  }
+
+  /* 0.20.0 · EL PERMISO DE GITHUB. Sin él, Publicar y Actualizar desde el
+     panel y desde el menú no hacen nada: el maestro no puede disparar el
+     flujo. Lo siembra `conectar` (0.16.0); una tienda anterior no lo tiene. */
+  if (tokenDeGitHub()) {
+    decir('OK   el maestro tiene su permiso de GitHub: Publicar y Actualizar funcionan.');
+  } else {
+    marcar('REVISAR');
+    decir('');
+    decir('Sin PERMISO DE GITHUB: Publicar ahora y Actualizar desde el panel o el');
+    decir('menú no van a disparar nada. Corre `conectar` otra vez (lo siembra solo)');
+    decir('o pega un token en las propiedades del script como GITHUB_TOKEN.');
   }
 
   // ── 3 ────────────────────────────────────────────────────────────────────
@@ -2629,6 +2803,53 @@ function diagnostico(mostrarSecretos) {
     decir('Sin errores registrados.');
   }
 
+  // ── 10 ───────────────────────────────────────────────────────────────────
+  /* 0.20.0 · LO QUE LA 0.19 TRAJO, Y LO QUE HACE FALTA EL DÍA MALO. Dos cosas
+     que no se ven hasta que se necesitan: si la tienda mide, y si de verdad se
+     puede volver atrás. Un respaldo que nadie comprobó es una copia
+     decorativa (bitácora 77). */
+  punto('Medición y vuelta atrás');
+  var cfgDiag = leerConfiguracion();
+  var idMed = idDeAnalitica(cfgDiag);
+  var crudoMed = String(cfgDiag.analytics_id || '').trim();
+  if (idMed) {
+    decir('Medición: Google Analytics 4 encendido (' + idMed + ').');
+    decir('   Se hornea al publicar: si acabas de ponerlo, publica para que tome efecto.');
+    decir('   Recuerda decirlo en la política de privacidad de la tienda.');
+  } else if (crudoMed) {
+    marcar('REVISAR');
+    decir('Medición: «' + crudoMed + '» NO es un identificador de GA4 y no se hornea.');
+    decir('   Tiene que verse así: G-ABCD123456 (Analytics > Administrar >');
+    decir('   Flujos de datos > Web). Un UA- o un GTM- no sirven.');
+  } else {
+    decir('Medición: apagada. La tienda no carga nada de Google ni pone cookies.');
+  }
+
+  decir('');
+  var carpeta = idDeCarpeta(cfgDiag.respaldo_carpeta);
+  if (!carpeta) {
+    marcar('REVISAR');
+    decir('Volver atrás: NO SE PUEDE. Falta respaldo_carpeta en Configuración,');
+    decir('   así que esta hoja no tiene ninguna copia de la que volver.');
+  } else {
+    var copias = [];
+    try { copias = listarRespaldos(); } catch (e) { copias = []; }
+    if (!copias.length) {
+      marcar('REVISAR');
+      decir('Volver atrás: la carpeta está puesta pero todavía no hay ninguna copia.');
+      decir('   Ejecuta A4_respaldoAhora una vez y comprueba que aparece.');
+    } else {
+      decir('Volver atrás: ' + copias.length + ' copia(s) de esta hoja. La más nueva, ' +
+            copias[0].cuando.toISOString().slice(0, 10) + '.');
+      decir('   Los DATOS: A5_respaldos() para verlas, A6_restaurarDatos(«ultimo», «Catálogo»)');
+      decir('   para volver. Solo ' + pestanasRestaurables().join(', ') + '.');
+    }
+    var ur = ultimaRestauracion();
+    if (ur.fecha) decir('   Última restauración: ' + ur.fecha.slice(0, 10) + ' — ' +
+                        (ur.pestanas || []).join(', ') + ' desde ' + ur.desde + '.');
+  }
+  decir('   El SITIO y la VERSIÓN: Actions > restaurar, en el repositorio de esta tienda.');
+
   /* ── El veredicto, arriba del todo ────────────────────────────────────────
      Se calcula al final porque hasta el final no se sabe, pero se LEE primero:
      el resumen va al principio del informe. Un informe que obliga a bajar
@@ -2653,6 +2874,27 @@ function diagnostico(mostrarSecretos) {
 
   return { tipo: 'html', titulo: 'Diagnóstico', texto: texto,
            html: diagnosticoEnHtml(puntos, copiable, servicio, tk) };
+}
+
+/* 0.20.0 · EL MISMO INFORME, DESDE EL PANEL. El comerciante ya no necesita
+   abrir la hoja ni llamarnos para saber qué le falta: lo lee en su panel. Va
+   sin secretos —`diagnostico(false)`— y devuelve además el resumen por puntos,
+   que es lo que el panel pinta arriba para que se vea de un vistazo. */
+function atenderDiagnostico() {
+  var d = diagnostico(false);
+  return { ok: true, texto: String(d.texto || ''), resumen: resumenDelDiagnostico(d.texto) };
+}
+
+/* El resumen que ya calcula el informe, en datos: el panel no debería tener
+   que leer texto para pintar tres colores. */
+function resumenDelDiagnostico(texto) {
+  var puntos = [];
+  String(texto || '').split('\n').some(function (l) {
+    var m = l.match(/^\s{2}(OK|REVISAR|PROBLEMA)\s+(\d+)\.\s+(.+)$/);
+    if (m) puntos.push({ estado: m[1], n: Number(m[2]), titulo: m[3].trim() });
+    return /^\s*→/.test(l) && puntos.length > 0;
+  });
+  return puntos;
 }
 
 /* El diagnóstico CON los secretos, para el que monta la tienda. Se ejecuta
@@ -3196,7 +3438,13 @@ var PUERTAS = {
   actualizar:            { guarda: 'panel', soloPost: true, soloDueno: true, fn: atenderActualizar },
   /* 0.16.0 · 3.4 · el permiso de GitHub lo siembra `conectar` (repositorio de
      servicio), con el token de montaje y solo por POST: viaja en el cuerpo. */
-  permiso:               { guarda: 'montaje', soloPost: true, fn: atenderPermiso }
+  permiso:               { guarda: 'montaje', soloPost: true, fn: atenderPermiso },
+  /* 0.20.0 · El diagnóstico desde el panel. Solo el dueño y solo por POST: el
+     informe dice qué le falta a la tienda, qué versión corre y qué está
+     mostrando —y el colaborador no administra el montaje—. Nunca lleva el
+     token de montaje: eso solo lo imprime `A2_diagnosticoCompleto` en el
+     editor, que no se puede llamar desde fuera. */
+  diagnostico:           { guarda: 'panel', soloPost: true, soloDueno: true, fn: atenderDiagnostico }
 };
 
 /* Cuánto puede pesar lo que se le manda al panel. El registro de pedidos
@@ -3331,7 +3579,8 @@ var PLANTILLA_STUB = [
 "  var r;",
 "  try {",
 "    var url = MAESTRO + '?a=menu&f=' + encodeURIComponent(OPCIONES[i].id) +",
-"              '&t=' + encodeURIComponent(TOKEN) + '&s=' + encodeURIComponent(STUB);",
+"              '&t=' + encodeURIComponent(TOKEN) + '&s=' + encodeURIComponent(STUB) +",
+"              '&h=' + encodeURIComponent(libro.getId());",
 "    var res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });",
 "    var cuerpo = res.getContentText().replace(/^\\s+/, '');",
 "    /* Google devuelve una PÁGINA WEB, no datos, cuando la implementación no",
@@ -3618,6 +3867,195 @@ function registrarRespaldo(dato) {
 function ultimoRespaldo() {
   try { return JSON.parse(
     PropertiesService.getScriptProperties().getProperty('RESPALDO') || '{}'); }
+  catch (e) { return {}; }
+}
+
+/* ============================================================================
+   VOLVER ATRÁS: LOS DATOS (0.18.0 · bitácora 77)
+   ----------------------------------------------------------------------------
+   Había copias y no había vuelta: ocho copias semanales en el Drive del
+   administrador, y para usarlas tocaba abrir la copia, mirar, y pegar celdas a
+   mano en la hoja viva. Eso a las once de la noche, con la tienda vendiendo,
+   es cuando se pisa lo que no era.
+
+   EL MODELO ENTERO CABE EN TRES FRASES, una por cosa que se puede perder:
+     · los datos  →  las copias de la hoja (esto).
+     · el código  →  las etiquetas vX.Y.Z de la semilla: `restaurar` › versión.
+     · el sitio   →  los commits de main: `restaurar` › sitio.
+   Ninguna inventa infraestructura nueva: los tres puntos de restauración ya
+   existían, lo que faltaba era la manera de volver a ellos sin manos.
+
+   LO QUE NO SE RESTAURA, Y POR QUÉ. Pedidos, Pagos, Datos de entrega, Avísame,
+   Registro, Errores: son lo que PASÓ, no lo que se configuró. Traer el Pedidos
+   del domingo un miércoles borra los pedidos del lunes y el martes —clientes
+   reales esperando— para arreglar un catálogo. Restaurar esas pestañas es peor
+   que el problema que vino a arreglar, así que aquí no se puede.
+
+   Y ANTES DE TOCAR NADA, UNA COPIA. La restauración es en sí misma una
+   operación destructiva: si se restaura la pestaña equivocada, lo que se acaba
+   de perder es el trabajo de esta semana. La copia de seguridad previa hace
+   que ese error tenga vuelta, y cuesta un segundo (makeCopy la resuelve Drive).
+   ============================================================================ */
+/* UNA FUNCIÓN Y NO UNA CONSTANTE: los nombres de las pestañas se declaran más
+   abajo en el archivo, y un `var` de aquí arriba se quedaría con la mitad en
+   `undefined` —la lista decía «Catálogo, Configuración, Envíos, Cupones, » y
+   la pestaña que faltaba era justo la de variantes—. Esto se evalúa cuando se
+   llama, que es cuando todo existe. */
+function pestanasRestaurables() {
+  return [H_CATALOGO, H_CONFIG, H_ENVIOS, H_CUPONES, H_INVENTARIO_VARIANTE];
+}
+
+/** A5 · Las copias que hay, la más nueva primero. Lee lo que imprime. */
+function A5_respaldos() {
+  var l = listarRespaldos();
+  if (!l.length) {
+    console.log('No hay ninguna copia todavía. Ejecuta A4_respaldoAhora().');
+    return l;
+  }
+  console.log('Copias de esta hoja (la más nueva primero):\n');
+  l.forEach(function (x, i) {
+    console.log((i + 1) + '. ' + x.nombre + '   ' + x.cuando.toISOString().slice(0, 10) + '   ' + x.id);
+  });
+  console.log('\nPara volver a una: A6_restaurarDatos(\'ultimo\', \'' +
+              pestanasRestaurables().slice(0, 2).join(',') + '\')');
+  console.log('Se puede restaurar: ' + pestanasRestaurables().join(', ') + '.');
+  return l;
+}
+
+/** A6 · Volver una o varias pestañas a como estaban en una copia. */
+function A6_restaurarDatos(copia, pestanas) { return restaurarDatos(copia, pestanas); }
+
+/* Las copias de ESTA hoja que hay en la carpeta de respaldos. El prefijo es el
+   mismo que pone respaldarHoja(): las de otras tiendas llevan otro. */
+function listarRespaldos() {
+  var c = leerConfiguracion();
+  var id = idDeCarpeta(c.respaldo_carpeta);
+  if (!id) throw new Error(
+    'Falta respaldo_carpeta en la pestaña Configuración: sin carpeta de ' +
+    'respaldos no hay copias que restaurar.');
+  var destino;
+  try { destino = DriveApp.getFolderById(id); }
+  catch (e) { throw new Error('No pude abrir la carpeta de respaldos (' + id + ').'); }
+
+  var prefijo = 'Copia_de_' + elLibro().getName().replace(/[\/\\]/g, '-') + '_';
+  var lista = [];
+  var it = destino.getFiles();
+  while (it.hasNext()) {
+    var f = it.next();
+    if (f.getName().indexOf(prefijo) !== 0) continue;
+    lista.push({ nombre: f.getName(), id: f.getId(), cuando: f.getDateCreated() });
+  }
+  lista.sort(function (a, b) { return b.cuando.getTime() - a.cuando.getTime(); });
+  return lista;
+}
+
+/* Qué copia es «esa». Acepta el número de A5_respaldos, el nombre, el ID, o
+   nada / «ultimo» para la más reciente: quien restaura a las once de la noche
+   no debería tener que acertar con un ID de 44 caracteres. */
+function laCopia(copia, lista) {
+  var t = String(copia === undefined || copia === null ? '' : copia).trim();
+  if (!lista.length) throw new Error(
+    'No hay ninguna copia de esta hoja en la carpeta de respaldos.');
+  if (!t || /^(ultim|últim)/i.test(t)) return lista[0];
+  if (/^[0-9]+$/.test(t)) {
+    var n = parseInt(t, 10);
+    if (n >= 1 && n <= lista.length) return lista[n - 1];
+    throw new Error('Solo hay ' + lista.length + ' copias: pide entre 1 y ' + lista.length + '.');
+  }
+  var uno = lista.filter(function (x) { return x.id === t || x.nombre === t; })[0];
+  if (!uno) throw new Error(
+    'No encuentro esa copia entre las de esta hoja. Ejecuta A5_respaldos() para verlas.');
+  return uno;
+}
+
+/* Qué pestañas. Se piden por su nombre, separadas por comas: una lista vacía
+   NO significa «todas» —restaurar todo por un dedo resbalado es justo lo que
+   esto tiene que hacer imposible—. */
+function lasPestanas(pestanas) {
+  var pedidas = String(pestanas || '').split(',').map(function (x) { return x.trim(); })
+                  .filter(function (x) { return x; });
+  if (!pedidas.length) throw new Error(
+    'Dime qué pestañas restaurar, separadas por comas. Se puede: ' +
+    pestanasRestaurables().join(', ') + '.');
+  var fuera = pedidas.filter(function (x) { return pestanasRestaurables().indexOf(x) === -1; });
+  if (fuera.length) throw new Error(
+    'No se puede restaurar ' + fuera.join(', ') + '. Solo: ' + pestanasRestaurables().join(', ') +
+    '. Pedidos, Pagos, Datos de entrega, Avísame y el Registro son lo que pasó, ' +
+    'no lo que se configuró: traerlos de una copia borra las ventas de esta semana.');
+  return pedidas;
+}
+
+function restaurarDatos(copia, pestanas) {
+  var pedidas = lasPestanas(pestanas);
+  var elegida = laCopia(copia, listarRespaldos());
+
+  var origen;
+  try { origen = SpreadsheetApp.openById(elegida.id); }
+  catch (e) { throw new Error('No pude abrir la copia ' + elegida.nombre + ': ' + e.message); }
+
+  /* ¿ES UNA COPIA DE ESTA TIENDA? El prefijo del nombre ya lo dice, pero el
+     nombre se puede cambiar a mano. El comercio de su Configuración no. */
+  var mio = String(leerConfiguracion().negocio || '').trim();
+  var suyo = '';
+  try {
+    var hc = origen.getSheetByName(H_CONFIG);
+    if (hc) {
+      hc.getDataRange().getValues().forEach(function (f) {
+        if (String(f[0]).trim() === 'negocio') suyo = String(f[1] || '').trim();
+      });
+    }
+  } catch (e) { }
+  if (mio && suyo && mio !== suyo) throw new Error(
+    'Esa copia es de «' + suyo + '» y esta hoja es de «' + mio + '». No restauro ' +
+    'datos de otra tienda.');
+
+  /* Una copia ANTES: restaurar también se puede hacer mal. */
+  var seguridad = respaldarHoja();
+
+  var libro = elLibro();
+  var hechas = [], anotaciones = [];
+  pedidas.forEach(function (nombre) {
+    var de = origen.getSheetByName(nombre);
+    if (!de) throw new Error('La copia ' + elegida.nombre + ' no tiene la pestaña ' + nombre + '.');
+    var a = libro.getSheetByName(nombre);
+    if (!a) throw new Error('Esta hoja no tiene la pestaña ' + nombre + '.');
+    var datos = de.getDataRange().getValues();
+    var ancho = 0;
+    datos.forEach(function (f) { ancho = Math.max(ancho, f.length); });
+    if (!datos.length || !ancho) throw new Error('La pestaña ' + nombre + ' de la copia está vacía.');
+    var filasAntes = a.getLastRow();
+    /* SOLO EL CONTENIDO, no clear(): el formato, los anchos y las validaciones
+       de la pestaña viva son de la versión de hoy, no de la copia. Lo que se
+       restaura son los DATOS. */
+    if (filasAntes) a.getRange(1, 1, filasAntes, Math.max(1, a.getLastColumn())).clearContent();
+    a.getRange(1, 1, datos.length, ancho).setValues(datos.map(function (f) {
+      var g = f.slice(0, ancho);
+      while (g.length < ancho) g.push('');
+      return g;
+    }));
+    hechas.push({ pestana: nombre, filas: datos.length - 1, antes: Math.max(0, filasAntes - 1) });
+    anotaciones.push({ que: 'Restaurado desde una copia', donde: nombre,
+                       antes: Math.max(0, filasAntes - 1) + ' filas',
+                       despues: (datos.length - 1) + ' filas (' + elegida.nombre + ')' });
+  });
+
+  var dato = { fecha: new Date().toISOString(), desde: elegida.nombre,
+               pestanas: hechas.map(function (x) { return x.pestana; }),
+               seguridad: seguridad.nombre };
+  try { PropertiesService.getScriptProperties().setProperty('RESTAURACION', JSON.stringify(dato)); } catch (e) { }
+  try { anotarCambios('restaurar', 'A6_restaurarDatos', anotaciones); } catch (e) { }
+  try { cacheFuera(); } catch (e) { }
+
+  console.log('Restaurado desde ' + elegida.nombre + ': ' +
+              hechas.map(function (x) { return x.pestana + ' (' + x.filas + ' filas)'; }).join(', ') +
+              '.\nAntes de tocar nada se guardó ' + seguridad.nombre + '.' +
+              '\nAhora publica la tienda para que el sitio muestre lo restaurado.');
+  return { ok: true, desde: elegida.nombre, seguridad: seguridad.nombre, pestanas: hechas };
+}
+
+function ultimaRestauracion() {
+  try { return JSON.parse(
+    PropertiesService.getScriptProperties().getProperty('RESTAURACION') || '{}'); }
   catch (e) { return {}; }
 }
 
@@ -4184,6 +4622,20 @@ function estadoDelStub() {
                  .getProperty('STUB_VISTO') || ''; } catch (e) { return ''; }
 }
 
+/* 0.20.0 · QUÉ VERSIÓN DEL STUB ESTÁ PEGADA EN LA HOJA, medido y no supuesto:
+   lo anota `atenderMenu` en cada petición. Vacío = nadie ha abierto el menú. */
+function stubVisto() {
+  try { return String(PropertiesService.getScriptProperties().getProperty('STUB_VISTO') || '').trim(); }
+  catch (e) { return ''; }
+}
+
+/* 0.20.0 · ¿Tiene el maestro su permiso de GitHub? Sin él, Publicar y
+   Actualizar desde el panel o el menú no disparan nada. */
+function tokenDeGitHub() {
+  try { return !!String(PropertiesService.getScriptProperties().getProperty('GITHUB_TOKEN') || '').trim(); }
+  catch (e) { return false; }
+}
+
 function marcaDelTokenViejo() {
   try { return PropertiesService.getScriptProperties()
                  .getProperty('STUB_CON_TOKEN_VIEJO') || ''; } catch (e) { return ''; }
@@ -4225,6 +4677,20 @@ function atenderMenu(p) {
     return { ok: false, error:
       'Este stub no corresponde a esta tienda. Vuelve a generarlo: ejecuta ' +
       'generarStub() en el maestro y pega el código que imprime.' };
+  }
+  /* 0.18.0 · ¿ES ESTA HOJA? El stub manda el ID de la hoja donde está pegado.
+     Un stub generado desde el maestro de OTRA tienda lleva su URL y su token,
+     así que el menú aparece y funciona… sobre la hoja de esa otra tienda: se
+     publicaría su catálogo y se verían sus pedidos. Pasó (bitácora 76). El
+     token no alcanza para verlo, porque es el token correcto — del maestro
+     equivocado. El ID de la hoja sí. Un stub anterior a la 0.18.0 no manda
+     `h`: eso no se rechaza, para no dejar tiendas sin menú al actualizar. */
+  var suHoja = String(p.h || '');
+  if (suHoja && HOJA_ID && suHoja !== String(HOJA_ID)) {
+    return { ok: false, error:
+      'Este código es de OTRA tienda: apunta a un maestro que administra otra ' +
+      'hoja. Genera el stub desde el maestro de ESTA hoja (A1_generarStub) y ' +
+      'pega lo que imprime.' };
   }
   if (!p.f) return { ok: true, menu: menuDeLaHoja() };
   try {
@@ -4371,7 +4837,11 @@ function semillaDeConfiguracion() {
 
       /* AL FINAL (R1). 0.11.0: dos del ROADMAP (4.1 y 4.4). */
       ['f_avisame',        'Sí', 'Sí = en lo agotado sale «Avísame cuando llegue»: el comprador te escribe por WhatsApp y la pestaña Avísame cuenta cuántos esperan cada producto. No se guarda ningún dato suyo. No = sin el botón'],
-      ['catalogo_columnas', '3', 'Cuántos productos por fila en una pantalla ancha (computador): 3, 4 o 5. En el celular siempre son 1 o 2']
+      ['catalogo_columnas', '3', 'Cuántos productos por fila en una pantalla ancha (computador): 3, 4 o 5. En el celular siempre son 1 o 2'],
+
+      /* AL FINAL (R1). La medición, apagada de fábrica: una tienda que no mide
+         no carga nada de Google, no pone cookies y no necesita banner. */
+      ['analytics_id',      '', 'Google Analytics 4: el identificador G-XXXXXXXXXX de tu flujo de datos web (analytics.google.com › Administrar › Flujos de datos › Web). Vacío = la tienda NO carga nada de Google y no pone cookies de medición. Al ponerlo, la tienda mide visitas, agregar al carrito, pedidos enviados y pagos: hay que publicar para que tome efecto, y hay que avisarlo en la política de privacidad']
   ];
 }
 

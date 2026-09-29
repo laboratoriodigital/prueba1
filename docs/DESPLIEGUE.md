@@ -16,33 +16,69 @@ hasta que el comercio está vendiendo, en orden, y con quién hace cada cosa.
 
 ---
 
-## El camino corto (0.16.0): `alta` y `conectar`
+## El camino normal (0.18.0): `alta` y `conectar`
 
-Desde `laboratoriodigital/tiendas` › Actions, dos flujos de tres campos cada uno
-hacen los pasos **1, 10 (menos `CLASPRC`), 11** y el permiso de GitHub del
-maestro. Lo que queda es lo de Google, que vive en la cuenta de cada tienda.
+**Así se monta una tienda hoy.** Dos flujos de tres campos cada uno en
+`laboratoriodigital/tiendas` › Actions hacen todo lo que es de GitHub; lo que
+queda es lo de Google, que vive en la cuenta de cada tienda y no se puede
+automatizar del otro lado. Los pasos numerados de más abajo son **el detalle de
+lo que hacen**: sirven para entender y para cuando algo falla.
 
-| | Quién | Qué |
+| Orden | Quién | Qué pasa |
 |---|---|---|
-| **alta** | Actions › alta › *Run workflow*: nombre corto, comercio, producto | Crea el repositorio clonando la última versión publicada de la semilla, limpio de lo que es de otra tienda; permisos, fusiones automáticas y `SEMILLA_TOKEN`; su fila en la flota. Deja en el resumen la lista de lo que falta |
-| Google | tú, en la cuenta de la tienda | Pasos **3 a 8** y **12** de abajo (hoja, maestro, implementar, abrir la URL, `A0_instalar`, llenar la hoja, el stub). Y el paso **9**: `A2_diagnosticoCompleto()` da *Servicio*, *Token* y el enlace de *Conectar* |
-| **conectar** | [Actions › conectar](https://github.com/laboratoriodigital/tiendas/actions/workflows/conectar.yml) › *Run workflow*: nombre corto, Servicio, Token | Le pregunta al maestro su hoja y su proyecto; pone `MAESTRO_URL`, `MAESTRO_TOKEN`, `HOJA_ID` y `SCRIPT_ID`; escribe en la hoja el comercio, la dirección y el repositorio; le pone al maestro su `GITHUB_TOKEN` (con `DISPARO_TOKEN`); dispara el primer montaje |
-| Cloudflare | tú, **cuando ese montaje termine** | Paso **2**: Import a repository. Al final a propósito: antes publicaría lo que todavía no es esta tienda |
-| **a mano, solo** | tú | `CLASPRC` (paso 10): la credencial de Google de la tienda. Nadie más puede crearla |
+| **1. alta** | tú: Actions › [alta](https://github.com/laboratoriodigital/tiendas/actions/workflows/alta.yml) › *Run workflow* — nombre corto, comercio, producto | Crea el repositorio clonando la **última versión publicada** de la semilla de ese producto, sin el catálogo, las fotos ni el dominio de otra tienda; le pone su `name` de Cloudflare, los permisos de Actions, las fusiones automáticas y `SEMILLA_TOKEN`; escribe su fila en `flota.json`. En el resumen deja la lista de lo que falta, con los datos de ESA tienda *(pasos 1 y 10 parciales)* |
+| **2. Google** | tú, en una cuenta nueva del comercio | Hoja › pegar `maestro.gs` › pegar `HOJA_ID` › **`A0_instalar`** › **Implementar** › abrir la URL una vez › llenar la hoja › `A2_diagnosticoCompleto` para copiar *Servicio* y *Token* *(pasos 3 a 9)* |
+| **3. conectar** | tú: Actions › [conectar](https://github.com/laboratoriodigital/tiendas/actions/workflows/conectar.yml) › *Run workflow* — nombre corto, Servicio, Token | Le pregunta al maestro su hoja y su proyecto; pone `MAESTRO_URL`, `MAESTRO_TOKEN`, `HOJA_ID` y `SCRIPT_ID`; le escribe a la hoja el comercio, la dirección y el repositorio sin pisar lo que el comercio ya puso; le siembra al maestro su `GITHUB_TOKEN`; **registra la tienda en la hoja de administración**; y dispara el primer montaje *(pasos 10 y 11)* |
+| **4. el stub** | tú, en el editor del maestro **de esa tienda** | `A1_generarStub` y pegar lo que imprime en Extensiones › Apps Script de la hoja *(paso 12)* |
+| **5. Cloudflare** | tú, **cuando ese montaje termine en verde** | Workers & Pages › Create › Import a repository. Al final a propósito: antes publicaría lo que todavía no es esta tienda *(paso 2)* |
+| **a mano, solo** | tú | `CLASPRC`: la credencial de Google de la tienda, que nadie más puede crear *(paso 10)*. Es lo único que queda sin automatizar |
 
-Los pasos numerados de abajo siguen siendo el procedimiento completo y el de
-referencia: son los que el camino corto hace por ti. El camino corto todavía
-no ha corrido de punta a punta en una tienda de verdad.
+Tiempo: **el alta y conectar son dos minutos de reloj cada uno**; lo que cuesta
+sigue siendo Google (la cuenta, la hoja y llenarla) y las fotos.
+
+> **Para hacerlo con los dedos, paso a paso y con las comprobaciones de cada
+> uno, está `RUNBOOK-TECNICO.md`.** Este documento es el mapa: dice qué pasa y
+> por qué. Aquel es la lista de clics. Y lo que el producto sabe hacer, entero
+> y por categorías, está en `FUNCIONALIDADES.md`.
+
+> **⚠ Implementa DESPUÉS de pegar `HOJA_ID` y correr `A0_instalar`** (bitácora
+> 74). La aplicación web corre la versión IMPLEMENTADA, no lo que ves en el
+> editor: si pegas algo después, *Implementar › Gestionar implementaciones ›
+> lápiz › Versión: Nueva versión*. Desde la 0.17.0 `A0_instalar` guarda
+> `HOJA_ID` en las propiedades, que son de todas las versiones, así que basta
+> con ejecutarlo. Si `conectar` dice «Falta HOJA_ID» con el diagnóstico
+> funcionando, es esto y lo dice.
+
+> **⚠ El stub se genera desde el maestro DE ESA TIENDA** (bitácora 76). Uno
+> generado por el maestro de otra lleva su URL y su token: el menú aparece,
+> funciona, y administra la tienda de al lado. Desde la 0.18.0 el maestro lo
+> rechaza, pero el que hay que pegar sigue siendo el suyo.
+
+### Lo que queda corriendo solo, después
+
+- **La hoja de administración** (*Panel de tiendas*) recibe la tienda sola,
+  porque `tiendas` tiene `PANEL_URL` (la aplicación web de esa hoja) y
+  `PANEL_CLAVE` (su menú › *Clave para el alta*).
+- **El portal**: en esa hoja, menú **Panel › Abrir el portal** — cada tienda con
+  sus cifras y sus enlaces (ver la tienda, su panel, su repositorio, publicar,
+  volver atrás), y arriba las acciones de la flota.
+- **Actualizar**: la tienda se actualiza sola desde su panel, el menú de su hoja
+  o la flota (`tiendas` › flota › actualizar), por anillos.
+- **Volver atrás**: el flujo `restaurar` de cada tienda, y `A5_respaldos` /
+  `A6_restaurarDatos` en su maestro. Ver *Volver atrás*, más abajo.
 
 ---
 
 ## De un vistazo
 
+Lo de arriba, paso a paso. **Los marcados con ⚙ los hace `alta` o `conectar`**;
+los demás son de Google, o del navegador.
+
 ```
    TÚ                          GITHUB / CLOUDFLARE           GOOGLE
    │
-   ├─ 1. repositorio ──────────► desde la plantilla
-   ├─ 2. Cloudflare ──────────► apunta a publicar/
+   ├─ 1. repositorio ⚙ ────────► lo clona `alta` de la última versión
+   ├─ 2. Cloudflare ──────────► apunta a publicar/ (AL FINAL: ver el camino normal)
    ├─ 3. cuenta + hoja ───────────────────────────────────► hoja del comercio
    ├─ 4. pegar maestro.gs ────────────────────────────────► Apps Script
    ├─ 5. IMPLEMENTAR (1 vez) ─────────────────────────────► la URL /exec
@@ -50,8 +86,8 @@ no ha corrido de punta a punta en una tienda de verdad.
    ├─ 7. A0_instalar() ───────────────────────────────────► pestañas y avisos
    ├─ 8. llenar la hoja (16 claves)
    ├─ 9. A2_diagnosticoCompleto() ─► servicio + token
-   ├─ 10. los 5 secretos ──────► del repositorio
-   ├─ 11. flujo `montaje` ─────► la página de la semilla + lo de esta hoja
+   ├─ 10. los 5 secretos ⚙ ────► los pone `conectar` (menos CLASPRC)
+   ├─ 11. flujo `montaje` ⚙ ───► lo dispara `conectar`
    ├─ 12. A1_generarStub() ───────────────────────────────► pegar en la hoja
    ├─ 13. fotos al Drive ─────────────────────────────────► «Publicar ahora»
    ├─ 14. WhatsApp Business: respuesta automática
@@ -66,13 +102,22 @@ invierten. Están marcados con ⚠ más abajo.
 
 ## Antes de la primera tienda de tu vida (no por tienda)
 
-- Cuenta de GitHub con la organización, y la plantilla `organico`.
+- Cuenta de GitHub con la organización, y las dos semillas: `tienda` (Tienda
+  Panel) y `organico` (Tienda Básica). El alta clona **etiquetas**, así que cada
+  semilla necesita al menos una versión publicada con `release`.
+- El repositorio de servicio `laboratoriodigital/tiendas`, con sus secretos:
+  `ALTA_TOKEN`, `FLOTA_TOKEN`, `SEMILLA_TOKEN`, `DISPARO_TOKEN` y —para que la
+  hoja de administración se llene sola— `PANEL_URL` y `PANEL_CLAVE`. **Esos
+  secretos no se copian a ninguna otra parte.**
+- La hoja **Panel de tiendas**: una hoja de cálculo tuya con `panel.gs` pegado
+  en su Apps Script, `instalar` ejecutado, implementada como aplicación web
+  (Ejecutar como: yo · Acceso: cualquiera) y su menú › *Clave para el alta*.
+  Es el registro del negocio y el portal.
+- El dominio en Cloudflare, si las tiendas van a tener subdominio propio.
 - `npm i -g @google/clasp` y `clasp login` — **con la cuenta dueña de la tienda
-  que vas a montar**, no con la tuya.
+  que vas a montar**, no con la tuya (es lo que produce `CLASPRC`).
 - Habilitar la API de Apps Script una vez por cuenta:
   `script.google.com/home/usersettings`.
-- El repositorio de servicio `laboratoriodigital/tiendas`, donde vive
-  `ALTA_TOKEN`. **Ese secreto no se copia a ninguna otra parte.**
 
 ---
 
@@ -82,9 +127,10 @@ Desde la plantilla. Nombre `organico-<comercio>`. **Pública**: Actions es
 gratis e ilimitado en repositorios públicos; en privados son 2.000 minutos al
 mes para toda la cuenta, repartidos entre todas las tiendas.
 
-> Hay un flujo que hace este paso solo, `servicio/tienda-nueva.yml`, y está
-> aparcado a propósito — ver `ROADMAP.md`, 3.3. Con pocas tiendas, hacerlo a
-> mano cuesta menos que mantenerlo.
+> ⚙ **Esto lo hace `alta`**, incluidos el `name` de Cloudflare, los permisos de
+> Actions y las fusiones automáticas: lo de abajo es lo que hace, por si hay que
+> revisarlo o rehacerlo a mano. El flujo viejo, `tienda-nueva.yml`, se fue en la
+> 0.17.0.
 
 Y **la casilla que se olvida siempre**: Settings → Actions → General →
 Workflow permissions → *Read and write permissions*. Sin ella `montaje` y
@@ -100,6 +146,9 @@ que es lo primero que se ve.
 > flujo con **Cómo publicar lo que salga → con-pull-request**, o si `main` está
 > protegida y el push cae al pull request de reserva.
 
+> ⚙ **Esto también lo hace `alta`.** Queda escrito porque es el fallo más caro
+> de la línea vieja, y porque hay tiendas montadas a mano.
+>
 > **⚠ Editar `wrangler.jsonc` antes del primer despliegue.** En el editor web
 > de GitHub (el lápiz), cambiar `"name": "organico"` por
 > `"name": "organico-<comercio>"` y hacer commit directo a `main`. **Dos
@@ -385,8 +434,8 @@ Revisar la vista previa de Cloudflare y fusionar.
 
 ## 12 · ⚠ `A1_generarStub()` — y el orden importa
 
-**En el editor del MAESTRO** (no en el de la hoja), seleccionar la función
-`A1_generarStub` → Ejecutar. Genera el stub a partir del maestro que está
+**En el editor del MAESTRO DE ESA TIENDA** (no en el de la hoja, y no en el de
+otra tienda: bitácora 76), seleccionar la función `A1_generarStub` → Ejecutar. Genera el stub a partir del maestro que está
 **PUBLICADO**, no del que está en el repositorio: hacerlo antes del paso 11
 devuelve el stub viejo y parece que la versión nueva no trae nada.
 
@@ -439,6 +488,24 @@ Después, menú de la hoja → **Publicar ahora**.
 > trae ahora **cuántas ve el maestro en la carpeta** y **cuáles nombra la hoja
 > sin tenerlas**. Casi siempre es la carpeta equivocada o el nombre que no
 > coincide.
+
+## 13b · La medición, si el comercio la quiere (0.19.0)
+
+Opcional y apagada de fábrica. En `analytics.google.com`: crear la propiedad
+del comercio › Administrar › **Flujos de datos** › Web › la dirección de la
+tienda. Copiar el identificador `G-XXXXXXXXXX` y pegarlo en la clave
+`analytics_id` de la pestaña Configuración. **Publicar** después: el
+identificador se hornea en el `<head>` durante el montaje, no se lee en vivo.
+
+Tres cosas que conviene decirle al comercio:
+
+- **Vacío es vacío**: sin esa clave la tienda no carga nada de Google y no pone
+  una sola cookie. Con ella sí, y eso hay que mencionarlo en la política de
+  privacidad.
+- Solo sirve **GA4** (`G-…`). Un `UA-…` (apagado por Google) o un `GTM-…` (Tag
+  Manager) no se hornean, y el panel dice por qué.
+- La tienda ya manda tres eventos: `agregar_al_carrito`, `enviar_pedido` y
+  `pagar_en_linea`. No hay que configurar nada más en Analytics.
 
 ## 14 · WhatsApp Business — la respuesta automática
 
@@ -642,6 +709,104 @@ cuenta **sí** ve.
 > `https://script.google.com/d/<SCRIPT_ID>/edit` con la cuenta de **esta**
 > tienda y ninguna otra —una ventana de incógnito ayuda—. Si dice que no
 > tienes acceso, el secreto apunta al maestro de otra.
+
+## La revisión de la tienda (0.20.0)
+
+El mismo informe de siempre, ahora en tres sitios: el menú de la hoja ›
+*Diagnóstico*, el panel del comercio › Tienda › **Revisión de tu tienda**, y
+`A2_diagnosticoCompleto()` en el editor del maestro —el único que enseña el
+token de montaje—. Desde la 0.20.0 mira además: de dónde salió el `HOJA_ID`,
+qué versión del stub está pegada en la hoja, si el maestro tiene su permiso de
+GitHub, si la medición está bien escrita, y cuántas copias de la hoja hay para
+volver atrás.
+
+## Volver atrás (0.18.0)
+
+Tres cosas se pueden perder, y cada una tiene su punto de restauración y su
+puerta. Ninguna inventa infraestructura: git ya guarda el sitio y las
+versiones, y Drive ya guarda las copias de la hoja.
+
+| Se perdió | Dónde está el respaldo | Cómo se vuelve |
+|---|---|---|
+| **Los datos** (catálogo, configuración, envíos, cupones) | las copias semanales en la carpeta de respaldos del administrador (`respaldo_carpeta`, ocho copias) | en el editor del maestro: `A5_respaldos()` las lista y `A6_restaurarDatos('ultimo', 'Catálogo')` devuelve las pestañas que se le digan |
+| **El sitio** (lo que se ve publicado) | cada commit de `main` que tocó `publicar/` | Actions › **restaurar** › `el-sitio` (vacío = el anterior). Publica un commit NUEVO encima; Cloudflare republica solo |
+| **La versión** (el código y el maestro) | las etiquetas `vX.Y.Z` de la semilla | Actions › **restaurar** › `la-version` (vacío = la anterior a la de esta tienda). Se lo pide a `montaje`, que publica el maestro, rehornea y corre las baterías |
+
+Las tres reglas que lo hacen seguro: **restaurar no borra** —el sitio vuelve en
+un commit encima, nunca con `push --force`, así que restaurar también se
+deshace—; **no se restaura lo que pasó** —Pedidos, Pagos, Datos de entrega,
+Avísame y el Registro no están en la lista, porque traer la copia del domingo
+un miércoles borraría las ventas del lunes—; y **antes de tocar nada se guarda
+una copia**, que es lo que hace que restaurar mal también tenga vuelta.
+
+El flujo `restaurar` viaja dentro de la semilla: cada tienda lo tiene en su
+pestaña Actions y no pide ningún secreto nuevo. Después de restaurar datos hay
+que **publicar** la tienda para que el sitio muestre lo restaurado.
+
+## Cloudflare Access: qué es y cuándo se enciende
+
+El panel de la flota y el portal enseñan la lista de clientes, sus ventas y sus
+direcciones. Mientras se abran desde la hoja de administración, quien puede
+abrir la hoja es quien los ve, y no hay nada que proteger. El día que esa misma
+pantalla se sirva en una dirección —`flota.laboratorio-digital.com`—, hace
+falta una puerta, y esa puerta es **Cloudflare Access**.
+
+**Qué es.** Access es la parte de Cloudflare Zero Trust que pone una
+comprobación de identidad **delante** de una dirección. No es una contraseña en
+la página ni código nuestro: la petición ni siquiera llega al Worker hasta que
+Cloudflare ha comprobado quién entra.
+
+**Cómo funciona, por dentro.**
+
+1. Alguien abre la dirección protegida. Cloudflare ve que hay una aplicación de
+   Access sobre ese dominio y **no deja pasar la petición**.
+2. Le enseña una pantalla de entrada con los métodos que hayas permitido:
+   código de un solo uso al correo, Google, GitHub, Microsoft, y otros.
+3. La persona se identifica. Cloudflare comprueba su identidad contra la
+   **política** que escribiste: por ejemplo, «solo estos tres correos», o «solo
+   los correos que terminan en @laboratorio-digital.com».
+4. Si pasa, Cloudflare emite una **cookie de sesión firmada** para ese dominio
+   (dura lo que tú digas: una hora, un día, un mes) y **a partir de ahí sí**
+   manda la petición al Worker, con una cabecera que dice quién es.
+5. Si no pasa, la petición muere en el borde de Cloudflare: el Worker nunca se
+   entera y la página nunca existe para esa persona.
+
+**Qué hay que hacer, una vez.** En el panel de Cloudflare: Zero Trust › Access
+› Applications › **Add an application** › *Self-hosted*; el dominio y la ruta
+que se protege; un método de entrada (el más simple es **One-time PIN**: un
+código al correo, sin cuentas nuevas); y una política *Allow* con la lista de
+correos. Nada de eso toca el repositorio ni el código.
+
+**Qué cuesta.** Nada en el uso que le vamos a dar: el plan gratuito de Zero
+Trust cubre hasta 50 usuarios. Lo que cuesta es acordarse de quitar a alguien
+de la lista el día que se va.
+
+**El token de Cloudflare, acotado.** `wrangler deploy` de una página estática
+necesita exactamente dos permisos de cuenta: *Workers Scripts: Edit* y *Account
+Settings: Read* —y *Workers Routes: Edit* de zona solo si el panel va en un
+dominio propio—. KV, R2, Pages, Containers, CI, Observability, Tail y CF Agents
+no hacen falta. El **filtro por IP se deja abierto**: los runners de GitHub
+cambian de dirección en cada corrida, así que acotarlo rompería el flujo el día
+menos pensado; lo que sí conviene es ponerle **vencimiento** al token y anotarlo
+donde se anotan los demás.
+
+**Cómo se publica el panel que hay que proteger.** Dos caminos, y el segundo
+no depende de que nadie conecte nada: (1) Cloudflare › Workers & Pages ›
+Create › Import a repository › `tiendas`, directorio `panel/`; o (2) poner
+`CLOUDFLARE_API_TOKEN` (plantilla *Edit Cloudflare Workers*) y
+`CLOUDFLARE_ACCOUNT_ID` en los secretos de `tiendas`: desde la 0.20.0, cada
+`flota` › **estado** escribe el panel y lo publica. El resumen de la corrida
+dice la dirección.
+
+**Por qué no se enciende todavía.** Porque el portal se abre desde la hoja de
+administración y esa hoja ya está protegida por la cuenta de Google del
+operador. Access entra cuando el portal se sirva en una dirección propia
+—roadmap 3.7—, y entonces protege también el panel estático que escribe el
+flujo `estado` de `tiendas`.
+
+**Lo que Access NO hace:** no protege la tienda del comercio (esa es pública, y
+tiene que serlo), no cifra nada que no estuviera ya cifrado por HTTPS, y no
+sustituye a la clave del panel del comerciante, que vive en su maestro.
 
 ## Y uno que solo aparece al rotar el token
 
