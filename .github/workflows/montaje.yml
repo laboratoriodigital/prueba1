@@ -584,6 +584,8 @@ jobs:
       - name: ¿Cambió algo?
         if: steps.hay.outputs.sigue == 'si'
         id: cambios
+        env:
+          FLUJOS: ${{ steps.permiso.outputs.flujos }}
         run: |
           # LO QUE ESTE FLUJO PUBLICA, ESCRITO UNA SOLA VEZ. Lo leen el `git add`
           # y las comprobaciones de abajo; en dos copias, una se queda atrás.
@@ -596,6 +598,39 @@ jobs:
             PUBLICA="$PUBLICA $(node -p "require('./semilla.json').propios.join(' ')")"
           fi
           git add -A -- $PUBLICA
+
+          # 0.21.2 · LO QUE NO SE PUEDE EMPUJAR NO SE COMMITEA (bitácora 101).
+          # Los archivos de `.github/workflows` solo los puede escribir un
+          # permiso con *Workflows*; el GITHUB_TOKEN de Actions no puede NUNCA.
+          # Si la actualización los escribió y aquí no hay con qué empujarlos, el
+          # commit sale con ellos dentro y GitHub rechaza el push ENTERO: la
+          # tienda se queda sin publicar su catálogo, sus fotos y su índice por
+          # culpa de un archivo que ni siquiera había pedido. Se sacan del
+          # índice, se deja el resto, y se dice qué se quedó atrás.
+          # 0.22.1 · En una tienda, SIEMPRE (bitácora 103): sus flujos los
+          # entrega la flota, porque el push de una tienda no puede escribirlos
+          # con ningún token —ver `empujar`, abajo—.
+          if [ "$(node -p "require('./pruebas/donde.js').esSemilla()" 2>/dev/null)" = "false" ] && \
+             ! git diff --cached --quiet -- .github/workflows; then
+            pendientes=$(git diff --cached --name-only -- .github/workflows | sed 's/^/  · /')
+            git restore --staged --worktree -- .github/workflows 2>/dev/null || \
+              { git reset --quiet -- .github/workflows; git checkout -- .github/workflows; }
+            {
+              echo ""
+              echo "**Los flujos se quedan como estaban.** La versión nueva los trae, pero este"
+              echo "repositorio no tiene un permiso que pueda escribirlos —el \`GITHUB_TOKEN\` de"
+              echo "Actions no puede tocar \`.github/workflows\` nunca—, así que se sacan del commit"
+              echo "y se publica todo lo demás. Sin esto, el push se rechaza entero y la tienda se"
+              echo "queda sin publicar su catálogo por culpa de un archivo que nadie pidió."
+              echo ""
+              echo '```'
+              echo "$pendientes"
+              echo '```'
+              echo ""
+              echo "Los entrega la flota: \`tiendas\` › Actions › **flota** › \`flujos\`, y \`flota\` ›"
+              echo "\`actualizar\` los pone sola después de cada tienda que se actualiza bien."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
           if git diff --cached --quiet -- $PUBLICA; then
             # UN "NO" TIENE QUE MOSTRAR SU TRABAJO. La primera vez que este paso
             # dijo "nada cambió" era mentira, y averiguar por qué costó ir a
@@ -762,10 +797,33 @@ jobs:
           # un permiso que no llega puede dejar los flujos atrás, pero no puede
           # dejar la tienda sin publicar todo lo demás.
           empujar() {
-            if [ "$FLUJOS" = "si" ] && [ -n "$SEMILLA_TOKEN" ]; then
-              git push --quiet "https://x-access-token:${SEMILLA_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:$1" && return 0
+            # 0.22.1 · SIN TRUCOS CON EL TOKEN (bitácora 103). Aquí se intentaba
+            # primero con `SEMILLA_TOKEN` metido en la URL, para poder llevar
+            # flujos. No servía NUNCA: `actions/checkout` deja en `.git/config`
+            # una cabecera con el permiso de Actions que git manda en cada push a
+            # GitHub, gane quien gane en la URL. El push de una tienda va con el
+            # permiso de Actions y ya; los flujos los pone la flota.
+            git push --quiet origin "HEAD:$1" 2>/tmp/push.txt && return 0
+            # UN RECHAZO POR LOS FLUJOS NO PUEDE DEJAR A LA TIENDA SIN PUBLICAR.
+            # GitHub rechaza el push entero cuando el commit toca
+            # `.github/workflows` sin permiso para ello; lo demás del commit está
+            # bien. Se quitan del commit y se vuelve a intentar, una vez.
+            if grep -q 'workflow.*without .workflows. permission' /tmp/push.txt; then
+              cat /tmp/push.txt
+              echo "::warning::El commit llevaba flujos y este permiso no puede escribirlos: se quitan y se publica el resto."
+              git rm --quiet --cached -r -- .github/workflows >/dev/null 2>&1 || true
+              git checkout HEAD -- .github/workflows 2>/dev/null || true
+              git commit --quiet --amend --no-edit
+              {
+                echo ""
+                echo "**Los flujos se quedaron atrás** (este permiso no puede escribir \`.github/workflows\`)."
+                echo "Lo demás se publicó igual. Con \`SEMILLA_TOKEN\` —Contents y Workflows en escritura—"
+                echo "llegan en la próxima actualización."
+              } >> "$GITHUB_STEP_SUMMARY"
+              git push --quiet origin "HEAD:$1" && return 0
             fi
-            git push --quiet origin "HEAD:$1"
+            cat /tmp/push.txt >&2
+            return 1
           }
 
           if [ "$AUTO" = "true" ]; then
