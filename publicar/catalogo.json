@@ -1,7 +1,7 @@
 {
  "esquema": 1,
  "version": "2026-09-22-8",
- "generado": "2026-09-30T03:36:51.357Z",
+ "generado": "2026-09-30T03:45:00.334Z",
  "productos": [
   {
    "id": "ejemplo1",
@@ -89,11 +89,11 @@
   "respaldo_carpeta": "",
   "fotos_drive": "https://drive.google.com/drive/folders/1P8cJJDuKxs8Ylv-VZUt7Be8Z1KnZlLgV?usp=sharing",
   "fotos_webp": "No",
-  "repositorio": "",
+  "repositorio": "laboratoriodigital/prueba1",
   "f_autoria": "Sí",
-  "autoria_url": "",
+  "autoria_url": "https://laboratorio-digital.com",
   "correo_ultimo": "",
-  "panel_usuario": "",
+  "panel_usuario": "test10",
   "tope_pago": "12110000",
   "cobro": "whatsapp",
   "cobro_pruebas": ""
