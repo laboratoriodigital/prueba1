@@ -39,7 +39,7 @@ de otros proyectos y aplicarlo antes de equivocarse: `CONOCIMIENTO.md`.
 
 ### P2 · Dos copias del mismo procedimiento: una siempre se queda atrás
 - **Regla:** una sola fuente, y lo demás se deriva de ella. Si no se puede, una aserción ata las dos copias. Vale igual para una lista, un número, un documento, un comentario o una justificación.
-- **Entradas:** 2, 9, 18, 26, 29, 33, 41, 52, 80, 82, 83, 99, 100, 110; Críticos: *Y el mismo agujero seguía intacto en el flujo de Actions*, *El guardia dejaba pasar el catálogo…*; Medios: *El runbook hablaba de dos campos…*; Menores: *«758 aserciones»…*.
+- **Entradas:** 2, 9, 18, 26, 29, 33, 41, 52, 80, 82, 83, 99, 100, 110, 116; Críticos: *Y el mismo agujero seguía intacto en el flujo de Actions*, *El guardia dejaba pasar el catálogo…*; Medios: *El runbook hablaba de dos campos…*; Menores: *«758 aserciones»…*.
 - **Lo impide hoy:** `PUBLICA` escrita una vez en `montaje.yml` y `fotos.yml`, y `pruebas/montaje.js` la compara con lo que escribe cada herramienta (99); `semilla.json` es la única lista de lo que es de la semilla; `pruebas/esquema.js` ata `CONTRATOS.md` al código; `pruebas/montaje.js` exige que todo secreto de un flujo esté en `ARQUITECTURA.md` (82).
 
 ### P3 · Windows
@@ -129,8 +129,8 @@ de otros proyectos y aplicarlo antes de equivocarse: `CONOCIMIENTO.md`.
 
 ### P20 · Lo que se le ofrece a alguien tiene que llegar por el camino que esa persona recorre
 - **Regla:** se prueba desde quien mira —el comprador, el comerciante que no entra a GitHub, el rastreador que no ejecuta JavaScript—, no desde el estado interno.
-- **Entradas:** 17, 31, 34, 57, 78, 85, 88, 109, 110, 112; Críticos: *El botón de WhatsApp se apagaba sin decir por qué*.
-- **Lo impide hoy:** las baterías de navegador miran la pantalla, no las listas internas (34, `pruebas/hoja.js`); el SEO se hornea y lo revisa `pruebas/seo.js` (31).
+- **Entradas:** 17, 31, 34, 57, 78, 85, 88, 109, 110, 112, 115; Críticos: *El botón de WhatsApp se apagaba sin decir por qué*.
+- **Lo impide hoy:** las baterías de navegador miran la pantalla, no las listas internas (34, `pruebas/hoja.js`); el SEO se hornea y lo revisa `pruebas/seo.js` (31); `pruebas/admin.js` sube una foto y guarda otro cambio en el mismo formulario (115).
 
 ### P21 · Lo que borra antes de escribir convierte un fallo en una pérdida
 - **Regla:** reescribir datos del comercio es escribir primero (o guardar lo de antes en memoria) y borrar después; si escribir falla, lo de antes vuelve a su sitio. Y lo que escribe el script pasa por las mismas reglas que lo que escribe una persona.
@@ -3122,3 +3122,75 @@ nueva es la forma en que P11 vuelve (la prueba da por hecho ser la semilla
 recién horneada).
 
 *Ficha:* *(mío)* · 🟠 Grave · P1, P10, P11, P19 · 1.0.0 · 2026-09-30
+
+**114 · El nombre del archivo no basta para relacionar una foto con una
+variante.** En la tienda el panel solo subía fotos generales o infería la opción
+por el nombre; `Catálogo › Imágenes` mezclaba las fotos de todo el producto con
+las de un color. Para productos con talla y color, una elección parcial no
+identifica su galería exacta, y el cliente no podía corregir la lista desde el
+panel.
+
+**El arreglo** (1.1.1): las fotos generales permanecen en `Catálogo ›
+Imágenes`; las propias van en `Inventario por variante › Imágenes`, junto a la
+combinación exacta. El panel permite subir fotos, editar los nombres separados
+por `|` o dejar la lista vacía para heredar las generales. El comprador recibe
+`imagenesVariantes` en el catálogo estático y en el respaldo; al elegir la
+combinación completa, la galería cambia a sus fotos. La actualización agrega la
+columna y copia las fotos antiguas reconocidas por nombre a las filas destino
+con espacio; solo las quita de Catálogo cuando todas las filas coincidentes las
+recibieron. Así conserva lo que no pudo mover. Cada combinación admite seis
+fotos. El panel acepta JPG, PNG y
+WebP; si el navegador no puede abrir un HEIC, indica cómo exportarlo como JPG.
+
+**Comprobación:** se actualizaron las expectativas existentes de inventario,
+orden visible y panel para el nuevo contrato. La suite no se ejecutó en esta
+sesión.
+
+*Ficha:* *(mío)* · 🟠 Grave · P1, P4, P9, P20 · 1.1.1 · 2026-10-04
+
+**115 · Subir una foto general dejaba vencido el formulario abierto.** `subir_foto`
+escribía en `Catálogo › Imágenes`, pero calculaba la nueva versión desde la fila
+leída antes de escribir. La foto aparecía; el siguiente Guardar rechazaba el
+cambio que el comerciante acababa de hacer porque la huella seguía siendo vieja.
+
+**El arreglo:** después de guardar la imagen general, actualizar la fila en
+memoria antes de devolver su versión. Las fotos de variante tienen su propia
+huella y siguen guardándose en `Inventario por variante › Imágenes`.
+
+**Comprobación:** `pruebas/admin.js` sube una foto, cambia el formato y guarda;
+el flujo completo pasó localmente (62/62).
+
+*Ficha:* *(mío)* · 🟠 Grave · P20 · 1.1.1 · 2026-10-04
+
+**116 · La guía de una página llegó a cien líneas.** Al explicar las fotos por
+combinación, `GUIA-COMERCIANTE.md` dejó de cumplir su propio límite de impresión.
+Eso hizo fallar `montaje.js`; `calendario.js` y `tiendita.js` repetían el mismo
+fallo porque vuelven a correr esa batería, no por defectos independientes.
+
+**El arreglo:** condensar la explicación y reflejarla también en la versión
+imprimible. La guía vuelve a quedar por debajo de cien líneas.
+
+**Comprobación:** la guía queda en 98 líneas. `pruebas/montaje.js` exige menos
+de cien; `pruebas/calendario.js` comprueba el mismo marcador bajo tres horas y
+el huso de Colombia.
+
+*Ficha:* *(mío)* · ⚪ Menor · P2 · 1.1.1 · 2026-10-04
+
+**117 · El selector del Admin soltaba la imagen antes de leerla.** El flujo de
+variantes vaciaba y deshabilitaba el selector antes de iniciar la decodificación.
+En algunos navegadores el JPG o PNG elegido terminaba en el mensaje de formato
+no compatible. Además, el formulario repetía los nombres que ya guarda la hoja
+y podía dejar la galería de la combinación fuera de sincronía.
+
+**El arreglo (1.1.2):** iniciar la lectura antes de limpiar el selector, decodificar
+con `createImageBitmap` y conservar el lector de imagen como respaldo. El panel
+ya no edita una segunda lista: muestra los nombres en solo lectura y cada carga
+los agrega a `Inventario por variante › Foto`. `instalar()` y `ponerHojaAlDia()`
+renombran la antigua columna `Imágenes` en el mismo lugar, preservando las celdas.
+
+**Comprobación:** `pruebas/admin.js` cubre carga PNG y JPG por combinaciones,
+confirma que el nombre escrito en `Foto` aparece en el panel y que las fotos
+generales siguen en `Catálogo › Imágenes`. `pruebas/presentacion.js` comprueba la
+migración automática del encabezado anterior.
+
+*Ficha:* *(mío)* · 🟠 Grave · P1, P4, P20 · 1.1.2 · 2026-10-04
