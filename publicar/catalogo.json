@@ -1,7 +1,7 @@
 {
  "esquema": 1,
  "version": "2026-10-04-2",
- "generado": "2026-10-12T11:08:33.222Z",
+ "generado": "2026-10-19T17:15:26.690Z",
  "productos": [
   {
    "id": "ejemplo1",
@@ -93,7 +93,7 @@
   "repositorio": "laboratoriodigital/prueba1",
   "f_autoria": "Sí",
   "autoria_url": "https://laboratorio-digital.com",
-  "correo_ultimo": "Sun Oct 11 2026 00:00:00 GMT-0500 (Colombia Standard Time)",
+  "correo_ultimo": "Mon Oct 19 2026 00:00:00 GMT-0500 (Colombia Standard Time)",
   "panel_usuario": "test10",
   "tope_pago": "12110000",
   "cobro": "whatsapp",
